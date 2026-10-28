@@ -165,7 +165,7 @@ function startDemoApplication() {
       { id: "demo-1", nome: "Aluno 1", plano: "Mensal", nascimento: dateInDays(1), vencimento: dateInDays(2), status: "Ativo" },
       { id: "demo-2", nome: "Aluno 2", plano: "Trimestral", nascimento: dateInDays(3), vencimento: dateInDays(4), status: "Ativo" },
       { id: "demo-3", nome: "Aluno 3", plano: "Semestral", nascimento: dateInDays(7), vencimento: dateInDays(6), status: "Ativo" },
-      { id: "demo-4", nome: "Aluno 4", plano: "Casal", nascimento: dateInDays(-20), vencimento: dateInDays(10), status: "Inativo" },
+      { id: "demo-4", nome: "Aluno 4", plano: "Casal", nascimento: dateInDays(-20), vencimento: dateInDays(5), status: "Inativo" },
       { id: "demo-5", nome: "Aluno 5", plano: "Mensal", nascimento: dateInDays(12), vencimento: dateInDays(14), status: "Ativo" }
     ]
   };
@@ -290,11 +290,12 @@ async function renderMasterSettings() {
 function renderDashboard() {
   const clients = state.clientes.length;
   const active = state.clientes.filter((client) => client.status !== "Inativo").length;
-  const soon = state.clientes.filter((client) => {
+  const upcomingDue = state.clientes.filter((client) => {
     if (!client.vencimento) return false;
     const days = Math.ceil((new Date(`${client.vencimento}T12:00:00`) - new Date(new Date().toDateString())) / 86400000);
-    return days >= 0 && days <= 7 && client.status !== "Inativo";
+    return days >= 0 && days <= 7;
   });
+  const soon = upcomingDue.filter((client) => client.status !== "Inativo");
   const birthdaysSoon = getUpcomingBirthdays();
   return `
     <section class="hero-card">
@@ -307,14 +308,62 @@ function renderDashboard() {
       ${statCard("Vencimentos próximos", soon.length, "Próximos 7 dias", "◷")}
     </section>
     <section class="dashboard-grid">
-      <div class="panel"><div class="panel-heading"><h2>Próximos vencimentos</h2><button class="text-link" data-page="vencimentos">Ver calendário →</button></div>
-        ${soon.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>CLIENTE</th><th>PLANO</th><th>VENCIMENTO</th></tr></thead><tbody>${soon.slice(0, 5).map((client) => `<tr><td>${escapeHTML(client.nome)}</td><td>${escapeHTML(client.plano || "—")}</td><td>${formatDate(client.vencimento)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><span>◷</span>Nenhum vencimento nos próximos 7 dias.</div>`}
+      <div class="panel dashboard-reminder-panel"><div class="panel-heading"><h2>Próximos vencimentos</h2><button class="text-link" data-page="vencimentos">Ver calendário →</button></div>
+        ${upcomingDue.length ? `<div class="due-reminder-list">${upcomingDue.slice(0, 5).map((client) => renderDueReminder(client)).join("")}</div>` : `<div class="empty-state"><span>◷</span>Nenhum vencimento nos próximos 7 dias.</div>`}
       </div>
-      <div class="panel"><div class="panel-heading"><h2>Próximos aniversários</h2><button class="text-link" data-page="aniversarios">Ver calendário →</button></div>
-        ${birthdaysSoon.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>CLIENTE</th><th>ANIVERSÁRIO</th></tr></thead><tbody>${birthdaysSoon.slice(0, 5).map((birthday) => `<tr><td>${escapeHTML(birthday.nome)}</td><td>${formatDate(birthday.date)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><span>♡</span>Nenhum aniversário nos próximos 7 dias.</div>`}
+      <div class="panel dashboard-reminder-panel"><div class="panel-heading"><h2>Próximos aniversários</h2><button class="text-link" data-page="aniversarios">Ver calendário →</button></div>
+        ${birthdaysSoon.length ? `<div class="due-reminder-list">${birthdaysSoon.slice(0, 5).map((birthday) => renderBirthdayReminder(birthday)).join("")}</div>` : `<div class="empty-state"><span>♡</span>Nenhum aniversário nos próximos 7 dias.</div>`}
       </div>
     </section>
   `;
+}
+
+function getWhatsAppPhone(telephone) {
+  const phone = String(telephone || "").replace(/\D/g, "");
+  if (phone.length === 10 || phone.length === 11) return `55${phone}`;
+  if (phone.length >= 12 && phone.length <= 13 && phone.startsWith("55")) return phone;
+  return "";
+}
+
+function renderWhatsAppButton(client, message, enabled = true, label = "WhatsApp") {
+  const phone = getWhatsAppPhone(client.telefone);
+  const whatsappUrl = enabled && (phone || isDemoMode)
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    : null;
+  if (!whatsappUrl) {
+    const reason = enabled ? "Cadastre um telefone válido para o aluno." : "O aluno está inativo.";
+    return `<button class="whatsapp-button" type="button" disabled title="${reason}"><span aria-hidden="true">◉</span> ${label}</button>`;
+  }
+  return `<a class="whatsapp-button" href="${escapeHTML(whatsappUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir mensagem para ${escapeHTML(client.nome)} no WhatsApp"><span aria-hidden="true">◉</span> ${label}</a>`;
+}
+
+function renderDueReminder(client) {
+  const isActive = client.status !== "Inativo";
+  const message = `Olá, ${client.nome}!\n\nEstamos passando para lembrar que o vencimento do seu plano está previsto para ${formatDate(client.vencimento)}. Se tiver qualquer dúvida, estamos à disposição para ajudar!\n\nAviso: esta é uma mensagem automática.\nCaso já tenha realizado o pagamento, por favor, desconsidere este aviso.`;
+
+  return `<article class="due-reminder-item">
+    <div class="due-reminder-details">
+      <strong class="due-reminder-name">${escapeHTML(client.nome)}</strong>
+      <div class="due-reminder-meta">
+        <span>Vence: ${formatDate(client.vencimento)}</span>
+        <span>Aniversário: ${client.nascimento ? formatDate(client.nascimento) : "—"}</span>
+        <span class="badge ${isActive ? "badge-paid" : "badge-due"}">${isActive ? "Ativo" : "Inativo"}</span>
+      </div>
+      <small>Mensagem automática · revise antes de enviar</small>
+    </div>
+    ${renderWhatsAppButton(client, message, isActive)}
+  </article>`;
+}
+
+function renderBirthdayReminder(birthday) {
+  const message = `Feliz aniversário, ${birthday.nome}!\n\nToda a equipe da Rocha Fitness deseja a você um dia especial, cheio de alegria e muitas conquistas. Agradecemos por fazer parte da nossa academia. Conte sempre com a gente!`;
+  return `<article class="due-reminder-item">
+    <div class="due-reminder-details">
+      <strong class="due-reminder-name">${escapeHTML(birthday.nome)}</strong>
+      <div class="due-reminder-meta"><span>Aniversário: ${formatDate(birthday.date)}</span></div>
+    </div>
+    ${renderWhatsAppButton(birthday, message, true, "Felicitar")}
+  </article>`;
 }
 
 function getUpcomingBirthdays() {

@@ -110,10 +110,25 @@ h1, h2, h3, p { margin-top: 0; }
 .stat-card small { color: #a29e9b; font-size: 8px; }
 .dashboard-grid { display: grid; gap: 16px; grid-template-columns: 1.35fr 1fr; }
 .panel { overflow: hidden; }
+.dashboard-reminder-panel { background: #171717; border-color: #292727; }
+.dashboard-reminder-panel > .panel-heading { border-color: #363333; }
+.dashboard-reminder-panel > .panel-heading h2 { color: white; }
+.dashboard-reminder-panel > .panel-heading .text-link { color: #ff777e; }
+.due-reminder-list { display: grid; gap: 8px; padding: 11px; }
+.due-reminder-item { align-items: center; background: #222; border: 1px solid #393636; border-radius: 7px; display: flex; gap: 10px; justify-content: space-between; padding: 10px 11px; }
+.due-reminder-details { min-width: 0; }
+.due-reminder-name { color: #fff; display: block; font-size: 10px; margin-bottom: 5px; }
+.due-reminder-meta { align-items: center; color: #c4bfbb; display: flex; flex-wrap: wrap; font-size: 8px; gap: 5px 9px; }
+.due-reminder-details > small { color: #aaa3a0; display: block; font-size: 7px; margin-top: 5px; }
+.whatsapp-button { align-items: center; background: #eaf5ee; border: 1px solid #d5e9db; border-radius: 5px; color: #27734a; display: inline-flex; flex: 0 0 auto; font-size: 8px; font-weight: 700; gap: 5px; justify-content: center; min-height: 29px; padding: 0 8px; text-decoration: none; }
+.whatsapp-button:hover:not(:disabled) { background: #d7eddf; }
+.whatsapp-button:disabled { background: #f1efed; border-color: #e6e2de; color: #a7a29e; cursor: not-allowed; }
 .panel-heading { align-items: center; border-bottom: 1px solid #f0eeec; display: flex; justify-content: space-between; min-height: 54px; padding: 0 17px; }
 .panel-heading h2 { font-family: Outfit,sans-serif; font-size: 13px; font-weight: 600; margin: 0; }
 .text-link { background: none; border: 0; color: var(--red); font-size: 9px; font-weight: 600; }
 .empty-state { color: #96918e; font-size: 10px; padding: 26px 18px; text-align: center; }
+.dashboard-reminder-panel .empty-state { color: #d3ceca; }
+.dashboard-reminder-panel .empty-state span { color: #ff777e; }
 .empty-state span { color: #bbb5b1; display: block; font-size: 23px; margin-bottom: 7px; }
 .hours-card { padding: 16px 18px; }
 .hours-card h3, .info-card h3 { font-family: Outfit,sans-serif; font-size: 12px; margin: 0 0 12px; }
