@@ -8,6 +8,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
 
 import app
 
@@ -15,14 +16,11 @@ import app
 class FitnessServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.original_master_username = os.environ.get("ROCHA_FITNESS_MASTER_USERNAME")
-        cls.original_master_password = os.environ.get("ROCHA_FITNESS_MASTER_PASSWORD")
         cls.original_database_path = app.DATABASE_PATH
-        os.environ["ROCHA_FITNESS_MASTER_USERNAME"] = "test-master"
-        os.environ["ROCHA_FITNESS_MASTER_PASSWORD"] = "test-master-password"
         cls.temp_dir = tempfile.TemporaryDirectory()
         app.DATABASE_PATH = Path(cls.temp_dir.name) / "test.db"
         app.initialize_database()
+        app.set_master_credentials("test-master", "test-master-password")
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), app.FitnessRequestHandler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
@@ -46,16 +44,10 @@ class FitnessServerTests(unittest.TestCase):
         cls.thread.join()
         cls.temp_dir.cleanup()
         app.DATABASE_PATH = cls.original_database_path
-        if cls.original_master_username is None:
-            os.environ.pop("ROCHA_FITNESS_MASTER_USERNAME", None)
-        else:
-            os.environ["ROCHA_FITNESS_MASTER_USERNAME"] = cls.original_master_username
-        if cls.original_master_password is None:
-            os.environ.pop("ROCHA_FITNESS_MASTER_PASSWORD", None)
-        else:
-            os.environ["ROCHA_FITNESS_MASTER_PASSWORD"] = cls.original_master_password
 
     def setUp(self):
+        if not app.get_master_credentials():
+            app.set_master_credentials("test-master", "test-master-password")
         with app.database_connection() as connection:
             connection.execute(
                 "DELETE FROM app_settings WHERE key = 'license_expires_at'"
@@ -93,12 +85,47 @@ class FitnessServerTests(unittest.TestCase):
                 "Faça login para continuar.",
             )
 
-    def test_master_remains_available_after_database_file_is_removed(self):
+    def test_master_credentials_are_hashed_and_removed_with_database(self):
+        credentials = app.get_master_credentials()
+        self.assertEqual(credentials[0], "test-master")
+        self.assertNotIn("test-master-password", credentials[1])
+        self.assertTrue(app.verify_password("test-master-password", credentials[1]))
+
         app.DATABASE_PATH.unlink()
-        status, settings = self.request_json("/api/master/settings")
-        self.assertEqual(status, 200)
-        self.assertIsNone(settings["license_expires_at"])
+        with self.assertRaises(HTTPError) as error:
+            self.request_json("/api/master/settings")
+        self.assertEqual(error.exception.code, 401)
+        self.assertIsNone(app.get_master_credentials())
         self.assertTrue(app.DATABASE_PATH.is_file())
+
+    def test_legacy_master_environment_is_migrated_to_database_once(self):
+        original_database_path = app.DATABASE_PATH
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                app.DATABASE_PATH = Path(temp_dir) / "migration.db"
+                with patch.dict(
+                    os.environ,
+                    {
+                        "ROCHA_FITNESS_MASTER_USERNAME": "legacy-master",
+                        "ROCHA_FITNESS_MASTER_PASSWORD": "legacy-master-password",
+                    },
+                ):
+                    app.initialize_database()
+                    app.configure_master_user()
+                    credentials = app.get_master_credentials()
+                    self.assertEqual(credentials[0], "legacy-master")
+                    self.assertTrue(
+                        app.verify_password("legacy-master-password", credentials[1])
+                    )
+
+                    os.environ["ROCHA_FITNESS_MASTER_USERNAME"] = "changed-master"
+                    os.environ["ROCHA_FITNESS_MASTER_PASSWORD"] = "changed-password"
+                    app.configure_master_user()
+                    self.assertEqual(
+                        app.get_master_credentials()[0], "legacy-master"
+                    )
+        finally:
+            app.DATABASE_PATH = original_database_path
 
     def test_record_create_update_delete_and_persist(self):
         status, created = self.request_json(

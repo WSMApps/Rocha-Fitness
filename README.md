@@ -13,19 +13,20 @@ dados são em Python, com SQLite; não são necessárias dependências externas.
 4. A página inicial mostra os planos, modalidades, horário, localização e
    empresas parceiras. Acesse <http://127.0.0.1:8000/admin> para abrir o painel.
 
-Antes de iniciar o servidor pela primeira vez, configure a conta master no
-PowerShell. O comando solicita a senha sem exibi-la:
+Na primeira execução, o servidor solicita o usuário master e a senha sem
+exibi-la:
 
 ```powershell
-$env:ROCHA_FITNESS_MASTER_USERNAME = "wilsera"
-$senha = Read-Host "Senha do usuário master" -AsSecureString
-$env:ROCHA_FITNESS_MASTER_PASSWORD = (New-Object System.Net.NetworkCredential("", $senha)).Password
 py app.py
 ```
 
-As variáveis valem para essa janela do PowerShell. A senha master não é gravada
-no código nem no SQLite; feche a janela quando terminar de usar o servidor.
-O usuário master permanece disponível mesmo se o arquivo do banco for apagado.
+As credenciais master ficam no banco, com a senha protegida por hash. Se as
+variáveis antigas `ROCHA_FITNESS_MASTER_USERNAME` e
+`ROCHA_FITNESS_MASTER_PASSWORD` ainda estiverem definidas e não houver uma conta
+master no banco, elas serão usadas para inicializá-la; depois, podem ser
+removidas do ambiente. Apagar o banco também apaga a conta master. Se as
+variáveis antigas ainda estiverem definidas, serão usadas novamente; caso
+contrário, o servidor solicitará novas credenciais na próxima execução.
 Contas administrativas adicionais são cadastradas pela tela **Configurações
 master** e guardadas no banco com senha derivada (hash). Ao apagar o banco,
 essas contas e a data de validade configurada também são apagadas.
@@ -37,8 +38,7 @@ ou remover o limite.
 
 Os cadastros são salvos em `rocha_fitness.db`, criado automaticamente na pasta
 do projeto. Para escolher outro caminho para o banco, defina a variável de
-ambiente `ROCHA_FITNESS_DATABASE` antes de iniciar o servidor. O servidor só
-inicia quando as variáveis de ambiente da conta master estão configuradas.
+ambiente `ROCHA_FITNESS_DATABASE` antes de iniciar o servidor.
 
 O painel aceita imagens JPEG, PNG, WebP ou GIF de até 700 KB para as parcerias.
 As empresas informadas inicialmente aparecem no site como cartões com iniciais;

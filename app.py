@@ -1,4 +1,5 @@
 import base64
+import getpass
 import hashlib
 import hmac
 import json
@@ -25,6 +26,9 @@ DATABASE_PATH = Path(
 SESSION_SECRET = secrets.token_bytes(32)
 SESSION_DURATION_SECONDS = 8 * 60 * 60
 PASSWORD_HASH_ITERATIONS = 310_000
+MASTER_USERNAME_SETTING = "master_username"
+MASTER_PASSWORD_HASH_SETTING = "master_password_hash"
+USERNAME_PATTERN = r"[A-Za-z0-9._-]{3,32}"
 COLLECTION_FIELDS = {
     "usuarios": ({"nome", "email", "perfil", "telefone"}, {"nome", "email"}),
     "clientes": (
@@ -132,17 +136,6 @@ def initialize_database():
             )
 
 
-def master_credentials():
-    username = os.environ.get("ROCHA_FITNESS_MASTER_USERNAME", "").strip()
-    password = os.environ.get("ROCHA_FITNESS_MASTER_PASSWORD", "")
-    if not username or not password:
-        raise RuntimeError(
-            "Configure ROCHA_FITNESS_MASTER_USERNAME e "
-            "ROCHA_FITNESS_MASTER_PASSWORD antes de iniciar o servidor."
-        )
-    return username, password
-
-
 def hash_password(password, salt=None):
     salt = salt or secrets.token_bytes(16)
     password_hash = hashlib.pbkdf2_hmac(
@@ -161,6 +154,65 @@ def verify_password(password, encoded_hash):
         "sha256", password.encode("utf-8"), salt, PASSWORD_HASH_ITERATIONS
     ).hex()
     return hmac.compare_digest(actual_hash, expected_hash)
+
+
+def get_master_credentials():
+    with database_connection() as connection:
+        rows = connection.execute(
+            "SELECT key, value FROM app_settings WHERE key IN (?, ?)",
+            (MASTER_USERNAME_SETTING, MASTER_PASSWORD_HASH_SETTING),
+        ).fetchall()
+    settings = {row["key"]: row["value"] for row in rows}
+    username = settings.get(MASTER_USERNAME_SETTING)
+    password_hash = settings.get(MASTER_PASSWORD_HASH_SETTING)
+    if not username or not password_hash:
+        return None
+    return username, password_hash
+
+
+def set_master_credentials(username, password):
+    if not isinstance(username, str) or not re.fullmatch(USERNAME_PATTERN, username):
+        raise ValueError(
+            "O usuário master deve ter de 3 a 32 caracteres: letras, números, "
+            "ponto, hífen ou sublinhado."
+        )
+    if not isinstance(password, str) or not 12 <= len(password) <= 1024:
+        raise ValueError("A senha master deve ter de 12 a 1024 caracteres.")
+    password_hash = hash_password(password)
+    with database_connection() as connection:
+        connection.executemany(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (
+                (MASTER_USERNAME_SETTING, username),
+                (MASTER_PASSWORD_HASH_SETTING, password_hash),
+            ),
+        )
+
+
+def configure_master_user():
+    if get_master_credentials():
+        return
+
+    legacy_username = os.environ.get("ROCHA_FITNESS_MASTER_USERNAME", "").strip()
+    legacy_password = os.environ.get("ROCHA_FITNESS_MASTER_PASSWORD", "")
+    if legacy_username or legacy_password:
+        if not legacy_username or not legacy_password:
+            raise RuntimeError(
+                "As variáveis antigas da conta master estão incompletas. "
+                "Configure ambas ou remova-as para cadastrar uma conta master."
+            )
+        set_master_credentials(legacy_username, legacy_password)
+        print("Conta master migrada para o banco de dados.")
+        return
+
+    print("Configure a conta master inicial. A senha não será exibida.")
+    username = input("Usuário master: ").strip()
+    password = getpass.getpass("Senha master (mínimo 12 caracteres): ")
+    confirmation = getpass.getpass("Confirme a senha master: ")
+    if password != confirmation:
+        raise RuntimeError("As senhas não conferem; a conta master não foi criada.")
+    set_master_credentials(username, password)
 
 
 def current_license_expiry():
@@ -305,8 +357,12 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             if not isinstance(session, dict) or session["expires"] <= int(time.time()):
                 return None
             if session.get("master") is True:
-                configured_username, _ = master_credentials()
-                if session.get("username") != configured_username:
+                configured_credentials = get_master_credentials()
+                if (
+                    not configured_credentials
+                    or session.get("username", "").casefold()
+                    != configured_credentials[0].casefold()
+                ):
                     return None
                 return session
             with database_connection() as connection:
@@ -365,12 +421,18 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Informe usuário e senha."})
             return
 
-        master_username, master_password = master_credentials()
-        is_master = username == master_username
-        if is_master:
-            is_master = hmac.compare_digest(password, master_password)
+        configured_credentials = get_master_credentials()
+        master_username = None
+        is_master = False
+        if configured_credentials:
+            master_username, master_password_hash = configured_credentials
+            if username.casefold() == master_username.casefold():
+                is_master = verify_password(password, master_password_hash)
         user = None
-        if not is_master and username != master_username:
+        if not is_master and (
+            master_username is None
+            or username.casefold() != master_username.casefold()
+        ):
             with database_connection() as connection:
                 user = connection.execute(
                     "SELECT password_hash FROM admin_users WHERE username = ?",
@@ -547,9 +609,7 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             return
         username = data.get("username")
         password = data.get("password")
-        if not isinstance(username, str) or not re.fullmatch(
-            r"[A-Za-z0-9._-]{3,32}", username
-        ):
+        if not isinstance(username, str) or not re.fullmatch(USERNAME_PATTERN, username):
             self.send_json(
                 HTTPStatus.BAD_REQUEST,
                 {"error": "O usuário deve ter de 3 a 32 caracteres: letras, números, ponto, hífen ou sublinhado."},
@@ -561,7 +621,11 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
                 {"error": "A senha do novo administrador deve ter pelo menos 12 caracteres."},
             )
             return
-        if username.casefold() == master_credentials()[0].casefold():
+        configured_credentials = get_master_credentials()
+        if (
+            configured_credentials
+            and username.casefold() == configured_credentials[0].casefold()
+        ):
             self.send_json(
                 HTTPStatus.CONFLICT,
                 {"error": "Este nome de usuário é reservado para o master."},
@@ -702,8 +766,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    master_credentials()
     initialize_database()
+    configure_master_user()
     server = ThreadingHTTPServer(("127.0.0.1", 8000), FitnessRequestHandler)
     print("Rocha Fitness disponível em http://127.0.0.1:8000")
     try:
