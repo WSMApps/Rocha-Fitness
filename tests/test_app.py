@@ -71,6 +71,9 @@ class FitnessServerTests(unittest.TestCase):
         with urlopen(f"{self.base_url}/") as response:
             self.assertEqual(response.status, 200)
             self.assertIn(b"Conhe\xc3\xa7a", response.read())
+        with urlopen(f"{self.base_url}/assets/partner-graal.png") as response:
+            self.assertEqual(response.headers.get_content_type(), "image/png")
+            self.assertTrue(response.read().startswith(b"\x89PNG\r\n\x1a\n"))
         with urlopen(f"{self.base_url}/admin") as response:
             self.assertEqual(response.status, 200)
             self.assertIn(b"Painel", response.read())
@@ -176,28 +179,44 @@ class FitnessServerTests(unittest.TestCase):
         with error.exception:
             self.assertEqual(json.loads(error.exception.read())["error"], "Preencha todos os campos obrigatórios.")
 
-    def test_partnership_image_is_publicly_available(self):
+    def test_partnership_registration_is_disabled_and_public_api_only_returns_gympass(self):
         image = "data:image/png;base64,aGVsbG8="
-        self.request_json(
-            "/api/records/parcerias",
-            "POST",
-            {"nome": "Parceiro de teste", "descricao": "Apoio local", "imagem": image},
-        )
-        _, partners = self.request_json("/api/public/parcerias")
-        partner = next(item for item in partners if item["nome"] == "Parceiro de teste")
-        self.assertEqual(partner["imagem"], image)
-        self.assertNotIn("id", partner)
+        with app.database_connection() as connection:
+            connection.execute("DELETE FROM records WHERE collection = 'parcerias'")
+            connection.executemany(
+                "INSERT INTO records (collection, id, data) VALUES (?, ?, ?)",
+                (
+                    (
+                        "parcerias",
+                        "legacy-gympass",
+                        json.dumps(
+                            {"nome": "GymPass", "descricao": "GymPass", "imagem": image}
+                        ),
+                    ),
+                    (
+                        "parcerias",
+                        "legacy-graal",
+                        json.dumps({"nome": "Graal", "descricao": "", "imagem": image}),
+                    ),
+                ),
+            )
 
-    def test_partnership_rejects_non_image_upload(self):
         with self.assertRaises(HTTPError) as error:
             self.request_json(
                 "/api/records/parcerias",
                 "POST",
-                {"nome": "Parceiro inválido", "imagem": "data:text/html;base64,YQ=="},
+                {"nome": "Parceiro de teste", "descricao": "Apoio local", "imagem": image},
             )
-        self.assertEqual(error.exception.code, 400)
         with error.exception:
-            self.assertIn("Selecione uma imagem", json.loads(error.exception.read())["error"])
+            self.assertEqual(error.exception.code, 404)
+
+        _, records = self.request_json("/api/records")
+        self.assertNotIn("parcerias", records)
+        _, partners = self.request_json("/api/public/parcerias")
+        self.assertEqual(len(partners), 1)
+        self.assertEqual(partners[0]["nome"], "GymPass")
+        self.assertEqual(partners[0]["imagem"], image)
+        self.assertNotIn("id", partners[0])
 
     def test_master_can_create_admin_with_hashed_password(self):
         password = "short123"

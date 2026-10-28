@@ -44,16 +44,7 @@ COLLECTION_FIELDS = {
         {"descricao", "tipo", "categoria", "valor", "data", "status"},
         {"descricao", "valor", "data"},
     ),
-    "parcerias": ({"nome", "descricao", "imagem"}, {"nome", "imagem"}),
 }
-DEFAULT_PARTNERS = (
-    "Escola Nacional Florestan Fernandes",
-    "Graal",
-    "Autopoli",
-    "ParaDouro Batistela",
-    "Organização Campo das Oliveiras",
-    "Kautex",
-)
 COLLECTION_OPTIONS = {
     ("usuarios", "perfil"): {"Administrador", "Recepção", "Financeiro"},
     ("clientes", "plano"): {"Semestral", "Trimestral", "Mensal", "Casal"},
@@ -116,25 +107,8 @@ def database_connection():
 
 
 def initialize_database():
-    with database_connection() as connection:
-        has_partners = connection.execute(
-            "SELECT 1 FROM records WHERE collection = 'parcerias' LIMIT 1"
-        ).fetchone()
-        if not has_partners:
-            connection.executemany(
-                "INSERT INTO records (collection, id, data) VALUES (?, ?, ?)",
-                (
-                    (
-                        "parcerias",
-                        str(uuid.uuid4()),
-                        json.dumps(
-                            {"nome": name, "descricao": "", "imagem": ""},
-                            ensure_ascii=False,
-                        ),
-                    )
-                    for name in DEFAULT_PARTNERS
-                ),
-            )
+    connection = connect_database()
+    connection.close()
 
 
 def hash_password(password, salt=None):
@@ -261,21 +235,6 @@ def validate_record(collection, data):
         if amount <= 0:
             raise ValueError("O valor financeiro deve ser maior que zero.")
         data = {**data, "valor": f"{amount:.2f}"}
-
-    if collection == "parcerias":
-        image = data["imagem"]
-        match = re.fullmatch(
-            r"data:(image/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/]+={0,2})",
-            image,
-        )
-        if not match:
-            raise ValueError("Selecione uma imagem JPEG, PNG, WebP ou GIF.")
-        try:
-            image_bytes = base64.b64decode(match.group(2), validate=True)
-        except ValueError as error:
-            raise ValueError("A imagem selecionada não é válida.") from error
-        if not image_bytes or len(image_bytes) > 700 * 1024:
-            raise ValueError("A imagem deve ter no máximo 700 KB.")
 
     return data
 
@@ -522,9 +481,13 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
 
     def get_all_records(self):
         result = {collection: [] for collection in COLLECTION_FIELDS}
+        collections = tuple(COLLECTION_FIELDS)
+        placeholders = ", ".join("?" for _ in collections)
         with database_connection() as connection:
             rows = connection.execute(
-                "SELECT collection, id, data FROM records ORDER BY rowid DESC"
+                "SELECT collection, id, data FROM records "
+                f"WHERE collection IN ({placeholders}) ORDER BY rowid DESC",
+                collections,
             ).fetchall()
         for row in rows:
             result[row["collection"]].append(decode_record(row))
@@ -545,19 +508,22 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
         with database_connection() as connection:
             rows = connection.execute(
                 "SELECT id, data FROM records WHERE collection = 'parcerias' "
-                "ORDER BY rowid DESC"
+                "AND json_extract(data, '$.nome') COLLATE NOCASE = ? "
+                "ORDER BY rowid DESC",
+                ("Gympass",),
             ).fetchall()
-        self.send_json(
-            HTTPStatus.OK,
-            [
-                {
-                    key: record[key]
-                    for key in ("nome", "descricao", "imagem")
-                    if key in record
-                }
-                for record in (decode_record(row) for row in rows)
-            ],
-        )
+        partners = []
+        for row in rows:
+            record = decode_record(row)
+            if isinstance(record.get("nome"), str):
+                partners.append(
+                    {
+                        key: record[key]
+                        for key in ("nome", "descricao", "imagem")
+                        if key in record
+                    }
+                )
+        self.send_json(HTTPStatus.OK, partners)
 
     def do_POST(self):
         parts = self.request_parts()

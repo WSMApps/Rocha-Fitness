@@ -1,8 +1,8 @@
 # Rocha Fitness Academia
 
 Site público e painel administrativo da Rocha Fitness com cadastros, parcerias
-com imagens, calendários, planos e finanças. O servidor e a persistência dos
-dados são em Python, com SQLite; não são necessárias dependências externas.
+fixas, calendários, planos e finanças. O servidor e a persistência dos dados
+são em Python, com SQLite; não são necessárias dependências externas.
 
 ## Executar
 
@@ -45,9 +45,10 @@ Os cadastros são salvos em `rocha_fitness.db`, criado automaticamente na pasta
 do projeto. Para escolher outro caminho para o banco, defina a variável de
 ambiente `ROCHA_FITNESS_DATABASE` antes de iniciar o servidor.
 
-O painel aceita imagens JPEG, PNG, WebP ou GIF de até 700 KB para as parcerias.
-As empresas informadas inicialmente aparecem no site como cartões com iniciais;
-adicione um logotipo pelo cadastro de parcerias para personalizar cada cartão.
+As parcerias Escola Nacional Florestan Fernandes, Graal, Autopoli, ParaDouro
+Batistela, Organização Campo das Oliveiras e Kautex são exibidas no site com
+logotipos estáticos. A Gympass continua sendo carregada do banco de dados pela
+API pública. O painel não oferece mais cadastro de parcerias.
 
 As imagens de fundo das seções de planos e modalidades são do Unsplash:
 [academia](https://unsplash.com/photos/photo-1534438327276-14e5300c3a48) e

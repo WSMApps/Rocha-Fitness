@@ -36,15 +36,6 @@ const SCHEMAS = {
     ],
     columns: [["nome", "Nome"], ["cargo", "Cargo"], ["telefone", "Telefone"], ["email", "E-mail"], ["admissao", "Admissão"]]
   },
-  parcerias: {
-    title: "Parcerias", singular: "parceria", description: "Cadastre empresas parceiras e a imagem que será exibida no site público.",
-    fields: [
-      { key: "nome", label: "Nome da empresa", required: true },
-      { key: "descricao", label: "Descrição", full: true },
-      { key: "imagem", label: "Imagem ou logotipo (JPEG, PNG, WebP ou GIF · até 700 KB)", type: "file", image: true, required: true }
-    ],
-    columns: [["imagem", "Logo"], ["nome", "Empresa"], ["descricao", "Descrição"]]
-  },
   financas: {
     title: "Finanças", singular: "lançamento", description: "Registre entradas e despesas para acompanhar o movimento financeiro.",
     fields: [
@@ -59,7 +50,7 @@ const SCHEMAS = {
   }
 };
 
-const defaultState = () => ({ usuarios: [], clientes: [], funcionarios: [], financas: [], parcerias: [] });
+const defaultState = () => ({ usuarios: [], clientes: [], funcionarios: [], financas: [] });
 const isDemoMode = new URLSearchParams(window.location.search).get("demo") === "1";
 let state = defaultState();
 let activePage = "inicio";
@@ -517,7 +508,7 @@ function navigate(page) {
   if (licenseExpired && page !== "configuracoes") return;
   if (page === "configuracoes" && !isMaster) return;
   activePage = page;
-  if (["usuarios", "clientes", "funcionarios", "parcerias"].includes(page)) {
+  if (["usuarios", "clientes", "funcionarios"].includes(page)) {
     document.getElementById("cadastros-submenu").classList.add("submenu");
     document.getElementById("cadastros-toggle").setAttribute("aria-expanded", "true");
   }
