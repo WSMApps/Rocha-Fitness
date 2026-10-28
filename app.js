@@ -253,19 +253,12 @@ async function renderMasterSettings() {
 function renderDashboard() {
   const clients = state.clientes.length;
   const active = state.clientes.filter((client) => client.status !== "Inativo").length;
-  const today = new Date();
-  const monthTransactions = state.financas.filter((item) => {
-    if (!item.data) return false;
-    const date = new Date(`${item.data}T12:00:00`);
-    return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear() && item.status !== "Pendente";
-  });
-  const income = monthTransactions.filter((item) => item.tipo === "Receita").reduce((sum, item) => sum + Number(item.valor || 0), 0);
-  const expenses = monthTransactions.filter((item) => item.tipo === "Despesa").reduce((sum, item) => sum + Number(item.valor || 0), 0);
   const soon = state.clientes.filter((client) => {
     if (!client.vencimento) return false;
     const days = Math.ceil((new Date(`${client.vencimento}T12:00:00`) - new Date(new Date().toDateString())) / 86400000);
     return days >= 0 && days <= 7 && client.status !== "Inativo";
   });
+  const birthdaysSoon = getUpcomingBirthdays();
   return `
     <section class="hero-card">
       <div class="hero-copy"><span class="eyebrow">FORÇA, FOCO E SUPERAÇÃO</span><h1>Bem-vindo à Rocha Fitness</h1><p><strong>"O corpo alcança o que a mente acredita"</strong><br>Seu espaço para acompanhar a academia de perto.</p></div>
@@ -275,20 +268,39 @@ function renderDashboard() {
       ${statCard("Alunos cadastrados", clients, "Total de clientes", "♙")}
       ${statCard("Alunos ativos", active, "Com matrícula ativa", "✓")}
       ${statCard("Vencimentos próximos", soon.length, "Próximos 7 dias", "◷")}
-      ${statCard("Receita do mês", currency(income), `Despesas pagas: ${currency(expenses)}`, "R$")}
     </section>
     <section class="dashboard-grid">
       <div class="panel"><div class="panel-heading"><h2>Próximos vencimentos</h2><button class="text-link" data-page="vencimentos">Ver calendário →</button></div>
         ${soon.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>CLIENTE</th><th>PLANO</th><th>VENCIMENTO</th></tr></thead><tbody>${soon.slice(0, 5).map((client) => `<tr><td>${escapeHTML(client.nome)}</td><td>${escapeHTML(client.plano || "—")}</td><td>${formatDate(client.vencimento)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><span>◷</span>Nenhum vencimento nos próximos 7 dias.</div>`}
       </div>
-      <div class="panel"><div class="panel-heading"><h2>Horários de funcionamento</h2></div><div class="hours-card"><h3>Esperamos por você</h3><div class="hours-row"><span>Segunda a sexta</span><strong>05h–12h · 14h–22h</strong></div><div class="hours-row"><span>Sábados e feriados</span><strong>08h–13h</strong></div><div class="hours-row"><span>Domingos</span><strong>Fechado</strong></div></div></div>
+      <div class="panel"><div class="panel-heading"><h2>Próximos aniversários</h2><button class="text-link" data-page="aniversarios">Ver calendário →</button></div>
+        ${birthdaysSoon.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>CLIENTE</th><th>ANIVERSÁRIO</th></tr></thead><tbody>${birthdaysSoon.slice(0, 5).map((birthday) => `<tr><td>${escapeHTML(birthday.nome)}</td><td>${formatDate(birthday.date)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty-state"><span>♡</span>Nenhum aniversário nos próximos 7 dias.</div>`}
+      </div>
     </section>
-    <section class="info-strip">
-      <div class="info-card"><h3>Modalidades</h3><div class="tag-list">${["Musculação", "Funcional", "HIIT Core", "GAP", "Alongamento", "Fit Dance"].map((item) => `<span class="tag">${item}</span>`).join("")}</div></div>
-      <div class="info-card"><h3>Empresas parceiras</h3><p class="partner-list">Escola Nacional Florestan Fernandes · Graal · Autopoli · ParaDouro Batistela · Organização Campo das Oliveiras · Kautex</p></div>
-      <div class="info-card"><h3>Fale com a gente</h3><div class="social-line"><strong>Telefone:</strong> (12) 99610-2095<br><strong>E-mail:</strong> pedro.rocha10@hotmail.com<br><strong>Instagram:</strong> @ROCHAA_FITNESS · <strong>Facebook:</strong> rochaafitness</div></div>
-    </section>
-    <section class="info-strip"><div class="info-card" style="grid-column:1/-1"><h3>Onde estamos</h3><p class="partner-list">Padre Manoel da Nóbrega, 60 — Jardim Dulce, Guararema — SP, Brazil</p></div></section>`;
+  `;
+}
+
+function getUpcomingBirthdays() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const year = today.getFullYear();
+
+  return state.clientes
+    .filter((client) => client.nascimento)
+    .map((client) => {
+      const [, month, day] = client.nascimento.split("-").map(Number);
+      let birthday = new Date(year, month - 1, day);
+      birthday.setHours(0, 0, 0, 0);
+      if (birthday < today) {
+        birthday = new Date(year + 1, month - 1, day);
+        birthday.setHours(0, 0, 0, 0);
+      }
+      const daysUntil = Math.round((birthday - today) / 86400000);
+      const date = `${birthday.getFullYear()}-${String(birthday.getMonth() + 1).padStart(2, "0")}-${String(birthday.getDate()).padStart(2, "0")}`;
+      return { nome: client.nome, date, daysUntil };
+    })
+    .filter((birthday) => birthday.daysUntil <= 7)
+    .sort((first, second) => first.daysUntil - second.daysUntil);
 }
 
 function statCard(label, value, note, icon) {
