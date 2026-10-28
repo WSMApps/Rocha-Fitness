@@ -60,6 +60,7 @@ const SCHEMAS = {
 };
 
 const defaultState = () => ({ usuarios: [], clientes: [], funcionarios: [], financas: [], parcerias: [] });
+const isDemoMode = new URLSearchParams(window.location.search).get("demo") === "1";
 let state = defaultState();
 let activePage = "inicio";
 let calendarDate = new Date();
@@ -70,6 +71,9 @@ let isMaster = false;
 let licenseExpired = false;
 
 async function apiRequest(path, options = {}) {
+  if (isDemoMode) {
+    throw new Error("O modo demonstração é somente para visualização.");
+  }
   const response = await fetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", ...options.headers }
@@ -142,8 +146,41 @@ function render() {
   document.getElementById("breadcrumb-current").textContent = page === "configuracoes" ? "Configurações master" : page === "inicio" ? "Visão geral" : page === "vencimentos" ? "Vencimentos" : page === "aniversarios" ? "Aniversários" : SCHEMAS[page]?.title || "Planos";
   document.querySelectorAll(".nav-link[data-page]").forEach((link) => link.classList.toggle("active", link.dataset.page === page));
   document.querySelectorAll(".main-nav .nav-link[data-page]").forEach((link) => {
-    link.hidden = licenseExpired && link.dataset.page !== "configuracoes";
+    link.hidden =
+      (licenseExpired && link.dataset.page !== "configuracoes")
+      || (link.dataset.page === "configuracoes" && !isMaster);
   });
+}
+
+function startDemoApplication() {
+  const dateInDays = (days) => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  state = {
+    ...defaultState(),
+    clientes: [
+      { id: "demo-1", nome: "Aluno 1", plano: "Mensal", nascimento: dateInDays(1), vencimento: dateInDays(2), status: "Ativo" },
+      { id: "demo-2", nome: "Aluno 2", plano: "Trimestral", nascimento: dateInDays(3), vencimento: dateInDays(4), status: "Ativo" },
+      { id: "demo-3", nome: "Aluno 3", plano: "Semestral", nascimento: dateInDays(7), vencimento: dateInDays(6), status: "Ativo" },
+      { id: "demo-4", nome: "Aluno 4", plano: "Casal", nascimento: dateInDays(-20), vencimento: dateInDays(10), status: "Inativo" },
+      { id: "demo-5", nome: "Aluno 5", plano: "Mensal", nascimento: dateInDays(12), vencimento: dateInDays(14), status: "Ativo" }
+    ]
+  };
+  currentUser = "Demonstração";
+  isMaster = false;
+  licenseExpired = false;
+  document.body.classList.add("demo-mode");
+  document.getElementById("auth-screen").hidden = true;
+  document.getElementById("app-shell").hidden = false;
+  document.getElementById("demo-notice").hidden = false;
+  document.getElementById("current-user").textContent = currentUser;
+  document.getElementById("current-role").textContent = "Visualização";
+  document.getElementById("master-nav").hidden = true;
+  activePage = "inicio";
+  render();
 }
 
 function showLogin(message = "") {
@@ -553,4 +590,8 @@ document.getElementById("logout-button").addEventListener("click", async () => {
     showRequestError(error);
   }
 });
-startApplication().catch((error) => showLogin(error.message));
+if (isDemoMode) {
+  startDemoApplication();
+} else {
+  startApplication().catch((error) => showLogin(error.message));
+}

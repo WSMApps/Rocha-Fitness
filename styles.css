@@ -58,6 +58,11 @@ button { cursor: pointer; }
 .sidebar-bottom span { color: #8d8989; font-size: 8px; letter-spacing: 1px; }
 
 .main-area { margin-left: 258px; min-height: 100vh; }
+.demo-notice { align-items: center; background: #fff3cd; border-bottom: 1px solid #f1d98a; color: #6b5100; display: flex; flex-wrap: wrap; font-size: 11px; gap: 8px 16px; justify-content: center; padding: 11px 20px; text-align: center; }
+.demo-notice a { color: #6b5100; font-weight: 700; }
+body.demo-mode .page-heading > .button,
+body.demo-mode .table-actions,
+body.demo-mode #logout-button { display: none; }
 .topbar { align-items: center; background: #fff; border-bottom: 1px solid var(--line); display: flex; height: 70px; justify-content: space-between; padding: 0 42px; }
 .breadcrumb { align-items: center; color: #969391; display: flex; font-size: 11px; gap: 10px; }
 .breadcrumb strong { color: #302f2e; font-weight: 600; }

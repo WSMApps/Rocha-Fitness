@@ -13,6 +13,11 @@ dados são em Python, com SQLite; não são necessárias dependências externas.
 4. A página inicial mostra os planos, modalidades, horário, localização e
    empresas parceiras. Acesse <http://127.0.0.1:8000/admin> para abrir o painel.
 
+No GitHub Pages, os links **Administrar** abrem `admin.html?demo=1`, um modo de
+demonstração com dados fictícios e somente visualização. Ele não acessa a API
+nem os dados reais; para usar o painel conectado, hospede o backend Python em
+um serviço compatível.
+
 Na primeira execução, o servidor solicita o usuário master e a senha sem
 exibi-la:
 
