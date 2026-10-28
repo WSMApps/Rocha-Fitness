@@ -98,6 +98,23 @@ class FitnessServerTests(unittest.TestCase):
         self.assertIsNone(app.get_master_credentials())
         self.assertTrue(app.DATABASE_PATH.is_file())
 
+    def test_master_password_accepts_eight_characters(self):
+        original_database_path = app.DATABASE_PATH
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                app.DATABASE_PATH = Path(temp_dir) / "short-password.db"
+                app.initialize_database()
+                with self.assertRaises(ValueError):
+                    app.set_master_credentials("test-master", "short7")
+                app.set_master_credentials("test-master", "short123")
+                self.assertTrue(
+                    app.verify_password(
+                        "short123", app.get_master_credentials()[1]
+                    )
+                )
+        finally:
+            app.DATABASE_PATH = original_database_path
+
     def test_legacy_master_environment_is_migrated_to_database_once(self):
         original_database_path = app.DATABASE_PATH
         try:
@@ -183,7 +200,7 @@ class FitnessServerTests(unittest.TestCase):
             self.assertIn("Selecione uma imagem", json.loads(error.exception.read())["error"])
 
     def test_master_can_create_admin_with_hashed_password(self):
-        password = "another-secure-password"
+        password = "short123"
         status, created = self.request_json(
             "/api/master/users",
             "POST",
@@ -197,6 +214,14 @@ class FitnessServerTests(unittest.TestCase):
                 ("frontdesk",),
             ).fetchone()
         self.assertNotIn(password, row["password_hash"])
+
+        with self.assertRaises(HTTPError) as error:
+            self.request_json(
+                "/api/master/users",
+                "POST",
+                {"username": "shortpass", "password": "short7"},
+            )
+        self.assertEqual(error.exception.code, 400)
 
         request = Request(
             f"{self.base_url}/api/login",

@@ -26,6 +26,7 @@ DATABASE_PATH = Path(
 SESSION_SECRET = secrets.token_bytes(32)
 SESSION_DURATION_SECONDS = 8 * 60 * 60
 PASSWORD_HASH_ITERATIONS = 310_000
+MASTER_PASSWORD_MIN_LENGTH = 8
 MASTER_USERNAME_SETTING = "master_username"
 MASTER_PASSWORD_HASH_SETTING = "master_password_hash"
 USERNAME_PATTERN = r"[A-Za-z0-9._-]{3,32}"
@@ -176,8 +177,10 @@ def set_master_credentials(username, password):
             "O usuário master deve ter de 3 a 32 caracteres: letras, números, "
             "ponto, hífen ou sublinhado."
         )
-    if not isinstance(password, str) or not 12 <= len(password) <= 1024:
-        raise ValueError("A senha master deve ter de 12 a 1024 caracteres.")
+    if not isinstance(password, str) or not MASTER_PASSWORD_MIN_LENGTH <= len(password) <= 1024:
+        raise ValueError(
+            f"A senha master deve ter de {MASTER_PASSWORD_MIN_LENGTH} a 1024 caracteres."
+        )
     password_hash = hash_password(password)
     with database_connection() as connection:
         connection.executemany(
@@ -208,7 +211,9 @@ def configure_master_user():
 
     print("Configure a conta master inicial. A senha não será exibida.")
     username = input("Usuário master: ").strip()
-    password = getpass.getpass("Senha master (mínimo 12 caracteres): ")
+    password = getpass.getpass(
+        f"Senha master (mínimo {MASTER_PASSWORD_MIN_LENGTH} caracteres): "
+    )
     confirmation = getpass.getpass("Confirme a senha master: ")
     if password != confirmation:
         raise RuntimeError("As senhas não conferem; a conta master não foi criada.")
@@ -615,10 +620,18 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
                 {"error": "O usuário deve ter de 3 a 32 caracteres: letras, números, ponto, hífen ou sublinhado."},
             )
             return
-        if not isinstance(password, str) or not 12 <= len(password) <= 1024:
+        if (
+            not isinstance(password, str)
+            or not MASTER_PASSWORD_MIN_LENGTH <= len(password) <= 1024
+        ):
             self.send_json(
                 HTTPStatus.BAD_REQUEST,
-                {"error": "A senha do novo administrador deve ter pelo menos 12 caracteres."},
+                {
+                    "error": (
+                        "A senha do novo administrador deve ter pelo menos "
+                        f"{MASTER_PASSWORD_MIN_LENGTH} caracteres."
+                    )
+                },
             )
             return
         configured_credentials = get_master_credentials()

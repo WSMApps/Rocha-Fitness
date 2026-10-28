@@ -203,8 +203,8 @@ async function renderMasterSettings() {
         <p>As senhas são armazenadas no banco somente como hash derivado; contas cadastradas aqui são removidas se o banco for apagado.</p>
         <label for="admin-username">Usuário</label>
         <input class="form-control" id="admin-username" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
-        <label for="admin-password">Senha (mínimo 12 caracteres)</label>
-        <input class="form-control" id="admin-password" name="password" type="password" minlength="12" maxlength="1024" autocomplete="new-password" required>
+        <label for="admin-password">Senha (mínimo 8 caracteres)</label>
+        <input class="form-control" id="admin-password" name="password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required>
         <button class="button button-primary" type="submit">Cadastrar administrador <span>＋</span></button>
         <h2 class="master-user-heading">Administradores cadastrados</h2>
         ${users ? `<ul class="master-user-list">${users}</ul>` : '<p>Nenhum administrador adicional cadastrado.</p>'}
