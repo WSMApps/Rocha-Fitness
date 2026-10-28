@@ -13,7 +13,7 @@ const SCHEMAS = {
     columns: [["nome", "Nome"], ["email", "E-mail"], ["perfil", "Perfil"], ["telefone", "Telefone"]]
   },
   clientes: {
-    title: "Clientes", singular: "cliente", description: "Cadastre alunos, acompanhe seus planos e mantenha os contatos atualizados.",
+    title: "Alunos", singular: "aluno", description: "Cadastre alunos, acompanhe seus planos e mantenha os contatos atualizados.",
     fields: [
       { key: "nome", label: "Nome completo", required: true },
       { key: "telefone", label: "Telefone", type: "tel", required: true },
@@ -294,7 +294,7 @@ function renderDashboard() {
       <img class="hero-logo" src="assets/logo.jpg" alt="Rocha Fitness Academia">
     </section>
     <section class="stats-grid" aria-label="Resumo da academia">
-      ${statCard("Alunos cadastrados", clients, "Total de clientes", "♙")}
+      ${statCard("Alunos cadastrados", clients, "Total de alunos", "♙")}
       ${statCard("Alunos ativos", active, "Com matrícula ativa", "✓")}
       ${statCard("Vencimentos próximos", soon.length, "Próximos 7 dias", "◷")}
     </section>
@@ -472,7 +472,7 @@ function renderCalendar(page) {
     const isToday = !otherMonth && year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
     cells.push(`<div class="calendar-day ${otherMonth ? "other-month" : ""} ${isToday ? "today" : ""}"><span class="day-number">${day}</span>${matching.map((entry) => `<div class="calendar-event ${entry.type === "birthday" ? "birthday" : ""}" title="${escapeHTML(entry.label)}">${escapeHTML(entry.label)}</div>`).join("")}</div>`);
   }
-  return `${pageHeading(title, description, null, null)}<section class="panel"><div class="panel-heading"><div class="calendar-controls"><button class="calendar-nav" data-action="previous-month" aria-label="Mês anterior">‹</button><span class="month-label">${MONTHS[month]} ${year}</span><button class="calendar-nav" data-action="next-month" aria-label="Próximo mês">›</button></div><button class="button button-primary button-small" data-page="clientes">Ver clientes <span>→</span></button></div><div class="calendar-grid">${cells.join("")}</div><div class="calendar-legend"><span><i class="legend-dot"></i>${isBirthday ? "Aniversariante" : "Vencimento da mensalidade"}</span>${isBirthday ? "" : "<span>Cadastre ou atualize os clientes para preencher o calendário.</span>"}</div></section>`;
+  return `${pageHeading(title, description, null, null)}<section class="panel"><div class="panel-heading"><div class="calendar-controls"><button class="calendar-nav" data-action="previous-month" aria-label="Mês anterior">‹</button><span class="month-label">${MONTHS[month]} ${year}</span><button class="calendar-nav" data-action="next-month" aria-label="Próximo mês">›</button></div><button class="button button-primary button-small" data-page="clientes">Ver alunos <span>→</span></button></div><div class="calendar-grid">${cells.join("")}</div><div class="calendar-legend"><span><i class="legend-dot"></i>${isBirthday ? "Aniversariante" : "Vencimento da mensalidade"}</span>${isBirthday ? "" : "<span>Cadastre ou atualize os alunos para preencher o calendário.</span>"}</div></section>`;
 }
 
 function openForm(page, record = null) {
@@ -505,6 +505,7 @@ function showToast(message) {
 }
 
 function navigate(page) {
+  if (!["inicio", "clientes", "vencimentos", "aniversarios", "planos", "configuracoes"].includes(page)) return;
   if (licenseExpired && page !== "configuracoes") return;
   if (page === "configuracoes" && !isMaster) return;
   activePage = page;
