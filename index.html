@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181818">
+  <meta name="description" content="Conheça a Rocha Fitness Academia em Guararema: modalidades, planos, horários e localização.">
+  <title>Rocha Fitness Academia | Guararema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="public.css">
+  <script src="public.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="public-brand" href="#inicio">
+      <img src="assets/logo.jpg" alt="Logotipo Rocha Fitness Academia">
+      <span><strong>ROCHA <b>FITNESS</b></strong><small>ACADEMIA · GUARAREMA</small></span>
+    </a>
+    <nav class="site-nav" aria-label="Navegação principal">
+      <a href="#planos">Planos</a>
+      <a href="#modalidades">Modalidades</a>
+      <a href="#horarios">Horários</a>
+      <a href="#parcerias">Parceiros</a>
+      <a href="#localizacao">Localização</a>
+      <a class="admin-nav-link" href="/admin">Administrar <span>↗</span></a>
+    </nav>
+    <a class="header-cta" href="https://wa.me/5512996102095" target="_blank" rel="noopener noreferrer">Fale com a gente <span>↗</span></a>
+    <button class="public-menu-toggle" id="public-menu-toggle" aria-label="Abrir menu" aria-expanded="false">☰</button>
+  </header>
+
+  <main>
+    <section class="public-hero" id="inicio">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <span class="hero-label"><span></span> SUA ACADEMIA EM GUARAREMA</span>
+          <h1>O corpo alcança o que <br><em>a mente acredita.</em></h1>
+          <p>Seu próximo passo começa aqui. Treino, energia e uma comunidade que acredita no seu potencial.</p>
+          <div class="hero-actions">
+            <div class="hero-hours" id="horarios" aria-label="Horários de funcionamento">
+              <span class="hero-hours-icon">◷</span>
+              <span class="hero-hours-copy">
+                <strong>SEGUNDA A SEXTA <span>05h às 12h · 14h às 22h</span></strong>
+                <strong>SÁBADOS E FERIADOS <span>08h às 13h</span></strong>
+                <strong>DOMINGOS <span>Fechado</span></strong>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-emblem"><div class="emblem-ring"><img src="assets/logo.jpg" alt="Rocha Fitness Academia"></div><span class="emblem-caption">FORÇA · FOCO · SUPERAÇÃO</span></div>
+      </div>
+      <a class="scroll-cue" href="#planos" aria-label="Rolar para os planos">↓</a>
+    </section>
+
+    <div class="offerings-layout">
+      <section class="section section-plans" id="planos">
+        <div class="section-heading"><div><span class="eyebrow">SEU PRÓXIMO PASSO</span><h2>Um plano para<br><em>o seu momento.</em></h2></div><p>Escolha como quer começar. O importante é dar o primeiro passo.</p></div>
+        <div class="public-plans">
+          <article class="public-plan"><h3>Mensal</h3><div class="public-price"><small>R$</small> 94<sup>,90</sup></div><p class="plan-detail">Pagamento mensal</p></article>
+          <article class="public-plan"><h3>Trimestral</h3><div class="public-price"><small>R$</small> 79<sup>,90</sup></div><p class="plan-detail">3× de R$ 79,90 por mês</p></article>
+          <article class="public-plan plan-highlight"><span class="plan-ribbon">MAIS VANTAGEM</span><h3>Semestral</h3><div class="public-price"><small>R$</small> 69<sup>,90</sup></div><p class="plan-detail">6× de R$ 69,90 por mês</p></article>
+          <article class="public-plan"><h3>Casal</h3><div class="public-price"><small>R$</small> 169<sup>,90</sup></div><p class="plan-detail">Mensal para duas pessoas</p></article>
+        </div>
+        <p class="enrollment-note">Adesão de matrícula <strong>R$ 30,00</strong> <span>·</span> Fale com nossa equipe para saber mais.</p>
+      </section>
+
+      <section class="section modalities-section" id="modalidades">
+        <div class="section-heading"><div><span class="eyebrow">MOVIMENTO É VIDA</span><h2>Encontre o treino<br><em>que é a sua cara.</em></h2></div><p>Variedade para se desafiar, se divertir e seguir evoluindo.</p></div>
+        <div class="modalities-grid">
+          <article class="modality-card modality-feature"><div><span>FORÇA E EVOLUÇÃO</span><h3>Musculação</h3></div><span class="modality-arrow">↗</span></article>
+          <article class="modality-card"><div><span>CONDICIONAMENTO</span><h3>Funcional</h3></div><span class="modality-arrow">↗</span></article>
+          <article class="modality-card"><div><span>ENERGIA LÁ EM CIMA</span><h3>HIIT Core</h3></div><span class="modality-arrow">↗</span></article>
+          <article class="modality-card"><div><span>FORÇA E DEFINIÇÃO</span><h3>GAP</h3></div><span class="modality-arrow">↗</span></article>
+          <article class="modality-card"><div><span>LEVEZA E EQUILÍBRIO</span><h3>Alongamento</h3></div><span class="modality-arrow">↗</span></article>
+          <article class="modality-card"><div><span>MÚSICA E MOVIMENTO</span><h3>Fit Dance</h3></div><span class="modality-arrow">↗</span></article>
+        </div>
+      </div>
+
+    <section class="section partners-section" id="parcerias">
+      <div class="section-heading partner-heading"><div><span class="eyebrow">JUNTOS SOMOS MAIS FORTES</span><h2>Quem treina com a<br><em>Rocha Fitness.</em></h2></div><p>Empresas parceiras que também acreditam em mais saúde e qualidade de vida.</p></div>
+      <div class="partners-grid" id="partners-grid" aria-live="polite"><p class="partners-loading">Conheça as empresas que fazem parte dessa parceria.</p></div>
+    </section>
+
+    <section class="location-section" id="localizacao">
+      <div class="location-copy"><span class="eyebrow">VEM CONHECER</span><h2>Estamos<br>perto de você.</h2><p>Padre Manoel da Nóbrega, 60<br>Jardim Dulce · Guararema, SP</p><a class="button button-red" href="https://www.google.com/maps/search/?api=1&query=Padre+Manoel+da+N%C3%B3brega%2C+60%2C+Jardim+Dulce%2C+Guararema%2C+SP" target="_blank" rel="noopener noreferrer">Ver no mapa <span>↗</span></a></div>
+      <a class="map-card" href="https://www.google.com/maps/search/?api=1&query=Padre+Manoel+da+N%C3%B3brega%2C+60%2C+Jardim+Dulce%2C+Guararema%2C+SP" target="_blank" rel="noopener noreferrer" aria-label="Abrir localização no Google Maps"><span class="map-lines"></span><span class="map-pin">●</span><span class="map-label">ROCHA FITNESS <small>JARDIM DULCE · GUARAREMA</small></span><span class="map-open">ABRIR MAPA ↗</span></a>
+    </section>
+
+    <section class="social-band"><div><span class="eyebrow">ACOMPANHE A GENTE</span><h2>Seu treino também<br>é <em>conexão.</em></h2></div><a href="https://www.instagram.com/ROCHAA_FITNESS/" target="_blank" rel="noopener noreferrer"><span class="social-icon">◎</span><span><small>INSTAGRAM</small><strong>@ROCHAA_FITNESS</strong></span><span class="social-arrow">↗</span></a><a href="https://www.facebook.com/rochaafitness" target="_blank" rel="noopener noreferrer"><span class="social-icon facebook-icon">f</span><span><small>FACEBOOK</small><strong>rochaafitness</strong></span><span class="social-arrow">↗</span></a></section>
+  </main>
+
+  <footer class="public-footer"><a class="public-brand" href="#inicio"><img src="assets/logo.jpg" alt=""><span><strong>ROCHA <b>FITNESS</b></strong><small>ACADEMIA · GUARAREMA</small></span></a><p>“O corpo alcança o que a mente acredita.”</p><a href="tel:+5512996102095">(12) 99610-2095</a><a class="admin-link" href="/admin">Painel administrativo ↗</a><span>© <span id="current-year"></span> Rocha Fitness Academia</span></footer>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181818">
+  <meta name="description" content="Painel administrativo da Rocha Fitness Academia, em Guararema.">
+  <title>Rocha Fitness Academia | Painel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="auth-screen" id="auth-screen" hidden>
+    <form class="auth-card" id="login-form">
+      <img src="assets/logo.jpg" alt="Rocha Fitness Academia">
+      <span class="eyebrow">ACESSO RESTRITO</span>
+      <h1>Painel administrativo</h1>
+      <p>Entre com seu usuário e senha para continuar.</p>
+      <label for="login-username">Usuário</label>
+      <input class="form-control" id="login-username" name="username" autocomplete="username" required>
+      <label for="login-password">Senha</label>
+      <input class="form-control" id="login-password" name="password" type="password" autocomplete="current-password" required>
+      <p class="auth-error" id="login-error" role="alert"></p>
+      <button class="button button-primary" type="submit">Entrar <span>→</span></button>
+      <a href="/">Voltar ao site público</a>
+    </form>
+  </main>
+  <div class="app-shell" id="app-shell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#" aria-label="Rocha Fitness Academia, início" data-page="inicio">
+        <img src="assets/logo.jpg" alt="Logotipo Rocha Fitness Academia">
+        <span class="brand-copy"><strong>ROCHA <span>FITNESS</span></strong><small>ACADEMIA · GUARAREMA</small></span>
+      </a>
+
+      <div class="menu-caption">MENU PRINCIPAL</div>
+      <nav class="main-nav" aria-label="Menu principal">
+        <button class="nav-link active" data-page="inicio"><span class="nav-icon">⌂</span> Visão geral</button>
+        <a class="nav-link" href="/"><span class="nav-icon">↗</span> Página pública</a>
+        <div class="nav-group">
+          <button class="nav-link nav-parent" id="cadastros-toggle" aria-expanded="true" aria-controls="cadastros-submenu">
+            <span class="nav-icon">▦</span> Cadastros <span class="chevron">⌄</span>
+          </button>
+          <div class="submenu" id="cadastros-submenu">
+            <button class="nav-link sub-link" data-page="usuarios"><span class="sub-dot"></span> Usuários</button>
+            <button class="nav-link sub-link" data-page="clientes"><span class="sub-dot"></span> Clientes</button>
+            <button class="nav-link sub-link" data-page="funcionarios"><span class="sub-dot"></span> Funcionários</button>
+            <button class="nav-link sub-link" data-page="parcerias"><span class="sub-dot"></span> Parcerias</button>
+          </div>
+        </div>
+        <button class="nav-link" data-page="vencimentos"><span class="nav-icon">▣</span> Vencimentos</button>
+        <button class="nav-link" data-page="aniversarios"><span class="nav-icon">♡</span> Aniversários</button>
+        <button class="nav-link" data-page="planos"><span class="nav-icon">◇</span> Planos</button>
+        <button class="nav-link" data-page="financas"><span class="nav-icon">▤</span> Finanças</button>
+        <button class="nav-link" data-page="configuracoes" id="master-nav" hidden><span class="nav-icon">⚙</span> Configurações master</button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="quote-mark">“</div>
+        <p>O corpo alcança o que a mente acredita.</p>
+        <span>— ROCHA FITNESS</span>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" aria-label="Abrir menu">☰</button>
+        <div class="breadcrumb"><span>Rocha Fitness</span><span class="crumb-separator">/</span><strong id="breadcrumb-current">Visão geral</strong></div>
+        <div class="topbar-actions">
+          <span class="today-label" id="today-label"></span>
+          <span class="top-avatar" aria-hidden="true">RF</span>
+          <div class="user-label"><strong id="current-user">Administrador</strong><small id="current-role">Gestão da academia</small></div>
+          <button class="button button-quiet button-small" id="logout-button" type="button">Sair</button>
+        </div>
+      </header>
+
+      <div class="page-content" id="page-content"></div>
+      <footer class="footer">ROCHA FITNESS ACADEMIA <span>·</span> GUARAREMA, SP</footer>
+    </main>
+  </div>
+
+  <dialog class="form-dialog" id="form-dialog" aria-labelledby="dialog-title">
+    <form id="record-form" method="dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">ROCHA FITNESS</span><h2 id="dialog-title">Novo cadastro</h2></div>
+        <button type="button" class="icon-button" id="close-dialog" aria-label="Fechar">×</button>
+      </div>
+      <div class="form-fields" id="form-fields"></div>
+      <div class="dialog-actions">
+        <button type="button" class="button button-quiet" id="cancel-dialog">Cancelar</button>
+        <button type="submit" class="button button-primary">Salvar cadastro <span>→</span></button>
+      </div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
