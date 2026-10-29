@@ -52,9 +52,8 @@ ambiente `ROCHA_FITNESS_DATABASE` antes de iniciar o servidor.
 
 As parcerias Escola Nacional Florestan Fernandes, Graal, Autopoli, ParaDouro
 Batistela, Organização Campo das Oliveiras e Kautex são exibidas no site com
-logotipos estáticos. A Gympass é carregada pela API pública do backend Python ou
-pela tabela pública restrita do Supabase, conforme a implantação. O painel não
-oferece mais cadastro de parcerias.
+logotipos estáticos. O site não carrega mais a parceria Gympass. O painel não
+oferece cadastro de parcerias.
 
 As imagens de fundo das seções de planos e modalidades são do Unsplash:
 [academia](https://unsplash.com/photos/photo-1534438327276-14e5300c3a48) e
@@ -108,9 +107,8 @@ GitHub.
 
 1. No Supabase, abra **SQL Editor** e execute primeiro
    `migrations/001_initial_schema.sql` se ainda não criou as tabelas. Em seguida,
-   execute `migrations/002_supabase_auth_rls.sql`. A segunda migração ativa RLS,
-   cria os perfis de acesso e publica apenas os campos da parceria Gympass. Ela
-   não importa os registros do SQLite.
+   execute `migrations/002_supabase_auth_rls.sql`. A segunda migração ativa RLS
+   e cria os perfis de acesso. Ela não importa os registros do SQLite.
 2. No Supabase, desative o cadastro público de usuários (sign-ups). Crie os
    administradores manualmente em **Authentication → Users** com e-mail e senha.
    Não use a conta antiga de login por nome de usuário: o Supabase Auth exige
@@ -143,8 +141,12 @@ contém dados de alunos, incluindo telefone, vencimento e potencialmente
 aniversário; as políticas permitem acesso apenas a perfis vinculados e também
 bloqueiam os administradores após o vencimento. O master mantém o acesso para
 renovar a data. Revise as permissões e mantenha apenas os dados pessoais
-necessários. A parceria pública é servida por `public_partners`, que não contém
-esses registros administrativos.
+necessários.
+
+Se as migrações 002 e 003 já foram executadas em um projeto Supabase, execute
+`migrations/004_remove_gympass.sql` no SQL Editor para remover os registros
+antigos da parceria e revogar a leitura pública da tabela `public_partners`, se
+ela existir.
 
 Se a tela master apresentar `permission denied for table app_settings` ao salvar
 a data de disponibilidade, execute `migrations/003_app_settings_grants.sql` no

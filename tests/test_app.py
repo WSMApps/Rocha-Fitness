@@ -250,7 +250,7 @@ class FitnessServerTests(unittest.TestCase):
         with error.exception:
             self.assertEqual(json.loads(error.exception.read())["error"], "Preencha todos os campos obrigatórios.")
 
-    def test_partnership_registration_is_disabled_and_public_api_only_returns_gympass(self):
+    def test_partnership_registration_is_disabled_and_public_api_returns_no_partners(self):
         image = "data:image/png;base64,aGVsbG8="
         with app.database_connection() as connection:
             connection.execute("DELETE FROM records WHERE collection = 'parcerias'")
@@ -284,10 +284,7 @@ class FitnessServerTests(unittest.TestCase):
         _, records = self.request_json("/api/records")
         self.assertNotIn("parcerias", records)
         _, partners = self.request_json("/api/public/parcerias")
-        self.assertEqual(len(partners), 1)
-        self.assertEqual(partners[0]["nome"], "GymPass")
-        self.assertEqual(partners[0]["imagem"], image)
-        self.assertNotIn("id", partners[0])
+        self.assertEqual(partners, [])
 
     def test_master_can_create_admin_with_hashed_password(self):
         password = "short123"

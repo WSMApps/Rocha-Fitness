@@ -568,27 +568,7 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, [decode_record(row) for row in rows])
 
     def get_public_partners(self):
-        with database_connection() as connection:
-            rows = execute_query(
-                connection,
-                "SELECT id, data FROM records WHERE collection = 'parcerias' "
-                f"ORDER BY {record_order_clause()}",
-            ).fetchall()
-        partners = []
-        for row in rows:
-            record = decode_record(row)
-            if (
-                isinstance(record.get("nome"), str)
-                and record["nome"].casefold() == "gympass"
-            ):
-                partners.append(
-                    {
-                        key: record[key]
-                        for key in ("nome", "descricao", "imagem")
-                        if key in record
-                    }
-                )
-        self.send_json(HTTPStatus.OK, partners)
+        self.send_json(HTTPStatus.OK, [])
 
     def do_POST(self):
         parts = self.request_parts()

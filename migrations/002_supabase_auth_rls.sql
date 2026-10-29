@@ -5,31 +5,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.public_partners (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    image TEXT
-);
-
-INSERT INTO public.public_partners (id, name, description, image)
-VALUES ('gympass', 'Gympass', 'Empresa parceira Rocha Fitness', NULL)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.public_partners (id, name, description, image)
-SELECT
-    id,
-    data::jsonb ->> 'nome',
-    COALESCE(data::jsonb ->> 'descricao', ''),
-    NULLIF(data::jsonb ->> 'imagem', '')
-FROM public.records
-WHERE collection = 'parcerias'
-  AND lower(data::jsonb ->> 'nome') = 'gympass'
-ON CONFLICT (id) DO UPDATE
-SET name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    image = EXCLUDED.image;
-
 CREATE OR REPLACE FUNCTION public.rocha_fitness_has_profile()
 RETURNS BOOLEAN
 LANGUAGE SQL
@@ -209,20 +184,16 @@ ALTER TABLE public.records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.public_partners ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.records FROM anon, authenticated;
 REVOKE ALL ON TABLE public.admin_users FROM anon, authenticated;
 REVOKE ALL ON TABLE public.app_settings FROM anon, authenticated;
 REVOKE ALL ON TABLE public.profiles FROM anon, authenticated;
-REVOKE ALL ON TABLE public.public_partners FROM anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.records TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.app_settings TO authenticated;
 GRANT SELECT (user_id, email, role, created_at)
     ON TABLE public.profiles TO authenticated;
-GRANT SELECT (name, description, image)
-    ON TABLE public.public_partners TO anon, authenticated;
 
 DROP POLICY IF EXISTS records_admin_select ON public.records;
 CREATE POLICY records_admin_select ON public.records
@@ -295,8 +266,3 @@ CREATE POLICY app_settings_master_update_license ON public.app_settings
         key = 'license_expires_at'
         AND public.rocha_fitness_is_master()
     );
-
-DROP POLICY IF EXISTS public_partners_read ON public.public_partners;
-CREATE POLICY public_partners_read ON public.public_partners
-    FOR SELECT TO anon, authenticated
-    USING (true);
