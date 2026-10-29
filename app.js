@@ -563,6 +563,35 @@ function getWhatsAppPhone(telephone) {
   return "";
 }
 
+function formatPhoneNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const hasCountryCode = digits.startsWith("55") && digits.length > 11;
+  const phone = (hasCountryCode ? digits.slice(2) : digits).slice(0, 11);
+  const areaCode = phone.slice(0, 2);
+  const subscriber = phone.slice(2);
+  const mobile = phone.length > 10;
+  const subscriberPrefixLength = mobile ? 5 : 4;
+  const prefix = hasCountryCode ? "+55 " : "";
+
+  if (!areaCode) return prefix;
+  if (areaCode.length < 2) return `${prefix}(${areaCode}`;
+  if (!subscriber) return `${prefix}(${areaCode}) `;
+  if (subscriber.length <= subscriberPrefixLength) {
+    return `${prefix}(${areaCode}) ${subscriber}`;
+  }
+  return `${prefix}(${areaCode}) ${subscriber.slice(0, subscriberPrefixLength)}-${subscriber.slice(subscriberPrefixLength)}`;
+}
+
+function phoneCaretPosition(value, digitCount) {
+  if (digitCount === 0) return 0;
+  let digitsSeen = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d/.test(value[index])) digitsSeen += 1;
+    if (digitsSeen === digitCount) return index + 1;
+  }
+  return value.length;
+}
+
 function renderWhatsAppButton(client, message, enabled = true, label = "WhatsApp") {
   const phone = getWhatsAppPhone(client.telefone);
   const whatsappUrl = enabled && (phone || isDemoMode)
@@ -621,7 +650,7 @@ function getUpcomingBirthdays() {
       }
       const daysUntil = Math.round((birthday - today) / 86400000);
       const date = `${birthday.getFullYear()}-${String(birthday.getMonth() + 1).padStart(2, "0")}-${String(birthday.getDate()).padStart(2, "0")}`;
-      return { nome: client.nome, date, daysUntil };
+      return { nome: client.nome, telefone: client.telefone, date, daysUntil };
     })
     .filter((birthday) => birthday.daysUntil <= 7)
     .sort((first, second) => first.daysUntil - second.daysUntil);
@@ -729,19 +758,28 @@ function openForm(page, record = null) {
   document.getElementById("dialog-title").textContent = record ? `Editar ${schema.singular}` : `Novo ${schema.singular}`;
   document.getElementById("form-fields").innerHTML = schema.fields.map((field) => {
     const type = field.type || "text";
-    const value = record?.[field.key] || "";
+    const value = type === "tel" ? formatPhoneNumber(record?.[field.key]) : record?.[field.key] || "";
     const options = field.options ? `<option value="">Selecione</option>${field.options.map((option) => `<option value="${escapeHTML(option)}" ${value === option ? "selected" : ""}>${escapeHTML(option)}</option>`).join("")}` : "";
     const control = field.image
       ? `<input class="form-control" id="field-${field.key}" name="${field.key}" type="file" accept="image/jpeg,image/png,image/webp,image/gif" ${field.required && !record?.[field.key] ? "required" : ""}><small class="field-help">${record?.[field.key] ? "Selecione outra imagem para substituir a atual." : "A imagem será exibida junto ao nome da empresa no site público."}</small>`
       : field.options
       ? `<select class="form-control" id="field-${field.key}" name="${field.key}" ${field.required ? "required" : ""}>${options}</select>`
-      : `<input class="form-control" id="field-${field.key}" name="${field.key}" type="${type}" value="${escapeHTML(value)}" ${field.required ? "required" : ""} ${field.min ? `min="${field.min}"` : ""} ${field.step ? `step="${field.step}"` : ""}>`;
+      : `<input class="form-control" id="field-${field.key}" name="${field.key}" type="${type}" value="${escapeHTML(value)}" ${type === "tel" ? 'inputmode="tel" autocomplete="tel" placeholder="(11) 99999-9999" maxlength="20"' : ""} ${field.required ? "required" : ""} ${field.min ? `min="${field.min}"` : ""} ${field.step ? `step="${field.step}"` : ""}>`;
     return `<div class="field ${field.full ? "full" : ""}"><label for="field-${field.key}">${field.label}${field.required ? " *" : ""}</label>${control}</div>`;
   }).join("");
   const dialog = document.getElementById("form-dialog");
   dialog.dataset.page = page;
   dialog.showModal();
 }
+
+document.getElementById("form-fields").addEventListener("input", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || input.type !== "tel") return;
+  const digitsBeforeCaret = input.value.slice(0, input.selectionStart || 0).replace(/\D/g, "").length;
+  input.value = formatPhoneNumber(input.value);
+  const caretPosition = phoneCaretPosition(input.value, digitsBeforeCaret);
+  input.setSelectionRange(caretPosition, caretPosition);
+});
 
 function showToast(message) {
   const toast = document.getElementById("toast");
