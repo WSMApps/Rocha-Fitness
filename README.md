@@ -145,3 +145,9 @@ bloqueiam os administradores após o vencimento. O master mantém o acesso para
 renovar a data. Revise as permissões e mantenha apenas os dados pessoais
 necessários. A parceria pública é servida por `public_partners`, que não contém
 esses registros administrativos.
+
+Se a tela master apresentar `permission denied for table app_settings` ao salvar
+a data de disponibilidade, execute `migrations/003_app_settings_grants.sql` no
+SQL Editor. A permissão SQL é complementada pelas políticas RLS da migração 002:
+usuários autenticados só podem consultar a validade e somente o perfil master
+pode inserir ou atualizar essa configuração.

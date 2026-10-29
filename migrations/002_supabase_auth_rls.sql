@@ -218,8 +218,7 @@ REVOKE ALL ON TABLE public.profiles FROM anon, authenticated;
 REVOKE ALL ON TABLE public.public_partners FROM anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.records TO authenticated;
-GRANT SELECT (key, value), INSERT (key, value), UPDATE (value)
-    ON TABLE public.app_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.app_settings TO authenticated;
 GRANT SELECT (user_id, email, role, created_at)
     ON TABLE public.profiles TO authenticated;
 GRANT SELECT (name, description, image)
