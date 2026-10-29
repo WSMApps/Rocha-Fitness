@@ -59,7 +59,7 @@ function escapeHTML(value) {
   })[char]);
 }
 
-document.querySelectorAll(".admin-nav-link, .admin-link").forEach((link) => {
+document.querySelectorAll(".admin-button").forEach((link) => {
   link.addEventListener("click", async (event) => {
     if (
       event.button !== 0
@@ -90,13 +90,4 @@ document.querySelectorAll(".admin-nav-link, .admin-link").forEach((link) => {
 });
 
 document.getElementById("current-year").textContent = String(new Date().getFullYear());
-document.getElementById("public-menu-toggle").addEventListener("click", (event) => {
-  const menu = document.querySelector(".site-nav");
-  const open = menu.classList.toggle("open");
-  event.currentTarget.setAttribute("aria-expanded", String(open));
-});
-document.querySelectorAll(".site-nav a").forEach((link) => link.addEventListener("click", () => {
-  document.querySelector(".site-nav").classList.remove("open");
-  document.getElementById("public-menu-toggle").setAttribute("aria-expanded", "false");
-}));
 loadGympass();
