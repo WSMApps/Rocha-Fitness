@@ -405,6 +405,7 @@ function startDemoApplication() {
   document.getElementById("app-shell").hidden = false;
   document.getElementById("demo-notice").hidden = false;
   document.getElementById("current-user").textContent = currentUser;
+  document.querySelector(".top-avatar").textContent = getUserInitials(currentUser);
   document.getElementById("current-role").textContent = "Visualização";
   document.getElementById("master-nav").hidden = true;
   activePage = "inicio";
@@ -415,6 +416,16 @@ function showLogin(message = "") {
   document.getElementById("app-shell").hidden = true;
   document.getElementById("auth-screen").hidden = false;
   document.getElementById("login-error").textContent = message;
+}
+
+function getUserInitials(name) {
+  const identity = String(name || "").trim().split("@")[0];
+  const parts = identity.split(/[.\s_-]+/).filter(Boolean);
+  if (!parts.length) return "RF";
+  return (parts.length > 1
+    ? `${parts[0][0]}${parts[1][0]}`
+    : parts[0].slice(0, 2)
+  ).toLocaleUpperCase("pt-BR");
 }
 
 async function startApplication() {
@@ -434,6 +445,7 @@ async function startApplication() {
   document.getElementById("auth-screen").hidden = true;
   document.getElementById("app-shell").hidden = false;
   document.getElementById("current-user").textContent = currentUser;
+  document.querySelector(".top-avatar").textContent = getUserInitials(currentUser);
   document.getElementById("current-role").textContent = isMaster ? "Usuário master" : "Administrador";
   document.getElementById("master-nav").hidden = !isMaster;
   activePage = licenseExpired ? "configuracoes" : "inicio";
