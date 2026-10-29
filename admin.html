@@ -10,6 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="supabase-config.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -18,7 +20,7 @@
       <img src="assets/logo.jpg" alt="Rocha Fitness Academia">
       <span class="eyebrow">ACESSO RESTRITO</span>
       <h1>Painel administrativo</h1>
-      <p>Entre com seu usuário e senha para continuar.</p>
+      <p>Entre com seu usuário e senha para continuar. No acesso pelo GitHub Pages, use o e-mail autorizado no Supabase.</p>
       <label for="login-username">Usuário</label>
       <input class="form-control" id="login-username" name="username" autocomplete="username" required>
       <label for="login-password">Senha</label>

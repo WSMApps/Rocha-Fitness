@@ -52,6 +52,18 @@ const SCHEMAS = {
 
 const defaultState = () => ({ usuarios: [], clientes: [], funcionarios: [], financas: [] });
 const isDemoMode = new URLSearchParams(window.location.search).get("demo") === "1";
+const supabaseConfig = window.ROCHA_SUPABASE_CONFIG || {};
+const supabaseUrl = typeof supabaseConfig.url === "string" ? supabaseConfig.url.trim() : "";
+const supabaseAnonKey = typeof supabaseConfig.anonKey === "string" ? supabaseConfig.anonKey.trim() : "";
+const hasSupabaseConfig = Boolean(supabaseUrl || supabaseAnonKey);
+const supabaseConfigurationError = hasSupabaseConfig && (
+  !supabaseUrl
+  || !supabaseAnonKey
+  || typeof window.supabase?.createClient !== "function"
+);
+const supabaseClient = hasSupabaseConfig && !supabaseConfigurationError
+  ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 let state = defaultState();
 let activePage = "inicio";
 let calendarDate = new Date();
@@ -64,6 +76,14 @@ let licenseExpired = false;
 async function apiRequest(path, options = {}) {
   if (isDemoMode) {
     throw new Error("O modo demonstração é somente para visualização.");
+  }
+  if (supabaseConfigurationError) {
+    throw new Error(
+      "A configuração do Supabase está incompleta. Confira supabase-config.js e a conexão com a biblioteca do Supabase."
+    );
+  }
+  if (supabaseClient) {
+    return supabaseApiRequest(path, options);
   }
   const response = await fetch(path, {
     ...options,
@@ -83,6 +103,223 @@ async function apiRequest(path, options = {}) {
     throw new Error(result.error || "Não foi possível concluir a operação.");
   }
   return result;
+}
+
+function unwrapSupabaseResult(result) {
+  if (result.error) {
+    throw new Error(result.error.message || "Não foi possível concluir a operação.");
+  }
+  return result.data;
+}
+
+function decodeSupabaseRecord(row) {
+  const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("O banco retornou um cadastro inválido.");
+  }
+  return { ...data, id: row.id };
+}
+
+async function getSupabaseSessionStatus(requireProfile = false) {
+  const { data: sessionData, error: sessionError } =
+    await supabaseClient.auth.getSession();
+  if (sessionError) throw new Error(sessionError.message);
+  if (!sessionData.session) {
+    return {
+      authenticated: false,
+      username: null,
+      is_master: false,
+      license_expires_at: null,
+      license_expired: false
+    };
+  }
+
+  const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+  if (userError) throw new Error(userError.message);
+  if (!userData.user) {
+    throw new Error("Não foi possível validar a sessão do Supabase.");
+  }
+
+  const profile = unwrapSupabaseResult(
+    await supabaseClient
+      .from("profiles")
+      .select("email, role")
+      .eq("user_id", userData.user.id)
+      .maybeSingle()
+  );
+  if (!profile || !["admin", "master"].includes(profile.role)) {
+    await supabaseClient.auth.signOut();
+    if (requireProfile) {
+      throw new Error(
+        "Esta conta ainda não foi autorizada para o painel. Peça ao master para vinculá-la no Supabase."
+      );
+    }
+    return {
+      authenticated: false,
+      username: null,
+      is_master: false,
+      license_expires_at: null,
+      license_expired: false
+    };
+  }
+
+  const setting = unwrapSupabaseResult(
+    await supabaseClient
+      .from("app_settings")
+      .select("value")
+      .eq("key", "license_expires_at")
+      .maybeSingle()
+  );
+  const expiry = setting?.value || null;
+  return {
+    authenticated: true,
+    username: profile.email || userData.user.email,
+    is_master: profile.role === "master",
+    license_expires_at: expiry,
+    license_expired: Boolean(expiry && expiry < new Date().toISOString().slice(0, 10))
+  };
+}
+
+async function supabaseApiRequest(path, options = {}) {
+  const method = options.method || "GET";
+  const parts = path.split("?")[0].split("/").filter(Boolean);
+  const body = options.body ? JSON.parse(options.body) : {};
+
+  if (path === "/api/session" && method === "GET") {
+    return getSupabaseSessionStatus();
+  }
+  if (path === "/api/login" && method === "POST") {
+    const result = unwrapSupabaseResult(
+      await supabaseClient.auth.signInWithPassword({
+        email: body.email,
+        password: body.password
+      })
+    );
+    try {
+      await getSupabaseSessionStatus(true);
+    } catch (error) {
+      await supabaseClient.auth.signOut();
+      throw error;
+    }
+    return { authenticated: true, username: result.user.email };
+  }
+  if (path === "/api/logout" && method === "POST") {
+    unwrapSupabaseResult(await supabaseClient.auth.signOut());
+    return { authenticated: false };
+  }
+  if (parts[0] === "api" && parts[1] === "records") {
+    if (method === "GET" && parts.length === 2) {
+      const rows = unwrapSupabaseResult(
+        await supabaseClient
+          .from("records")
+          .select("collection, id, data")
+          .in("collection", Object.keys(defaultState()))
+          .order("created_at", { ascending: false })
+      );
+      const records = Object.fromEntries(
+        Object.keys(defaultState()).map((collection) => [collection, []])
+      );
+      rows.forEach((row) => records[row.collection].push(decodeSupabaseRecord(row)));
+      return records;
+    }
+    if (method === "GET" && parts.length === 3) {
+      const collection = decodeURIComponent(parts[2]);
+      if (!Object.prototype.hasOwnProperty.call(defaultState(), collection)) {
+        throw new Error("Cadastro não encontrado.");
+      }
+      const rows = unwrapSupabaseResult(
+        await supabaseClient
+          .from("records")
+          .select("id, data")
+          .eq("collection", collection)
+          .order("created_at", { ascending: false })
+      );
+      return rows.map(decodeSupabaseRecord);
+    }
+    if (method === "POST" && parts.length === 3) {
+      const collection = decodeURIComponent(parts[2]);
+      if (!Object.prototype.hasOwnProperty.call(defaultState(), collection)) {
+        throw new Error("Cadastro não encontrado.");
+      }
+      const result = unwrapSupabaseResult(
+        await supabaseClient
+          .from("records")
+          .insert({
+            collection,
+            id: crypto.randomUUID(),
+            data: JSON.stringify(body)
+          })
+          .select("id, data")
+          .single()
+      );
+      return { record: decodeSupabaseRecord(result) };
+    }
+    if (method === "PUT" && parts.length === 4) {
+      const collection = decodeURIComponent(parts[2]);
+      const recordId = decodeURIComponent(parts[3]);
+      const result = unwrapSupabaseResult(
+        await supabaseClient
+          .from("records")
+          .update({ data: JSON.stringify(body) })
+          .eq("collection", collection)
+          .eq("id", recordId)
+          .select("id, data")
+          .maybeSingle()
+      );
+      if (!result) throw new Error("Registro não encontrado.");
+      return { record: decodeSupabaseRecord(result) };
+    }
+    if (method === "DELETE" && parts.length === 4) {
+      const collection = decodeURIComponent(parts[2]);
+      const recordId = decodeURIComponent(parts[3]);
+      const result = unwrapSupabaseResult(
+        await supabaseClient
+          .from("records")
+          .delete()
+          .eq("collection", collection)
+          .eq("id", recordId)
+          .select("id")
+      );
+      if (!result.length) throw new Error("Registro não encontrado.");
+      return { deleted: true };
+    }
+  }
+  if (path === "/api/master/settings" && method === "GET") {
+    const setting = unwrapSupabaseResult(
+      await supabaseClient
+        .from("app_settings")
+        .select("value")
+        .eq("key", "license_expires_at")
+        .maybeSingle()
+    );
+    const expiry = setting?.value || null;
+    const expired = Boolean(expiry && expiry < new Date().toISOString().slice(0, 10));
+    return { license_expires_at: expiry, license_expired: expired };
+  }
+  if (path === "/api/master/settings" && method === "PUT") {
+    const expiry = body.license_expires_at || null;
+    if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      throw new Error("Informe uma data válida no formato AAAA-MM-DD.");
+    }
+    unwrapSupabaseResult(
+      await supabaseClient
+        .from("app_settings")
+        .upsert({ key: "license_expires_at", value: expiry }, { onConflict: "key" })
+    );
+    const expired = Boolean(expiry && expiry < new Date().toISOString().slice(0, 10));
+    return { license_expires_at: expiry, license_expired: expired };
+  }
+  if (path === "/api/master/users" && method === "GET") {
+    const profiles = unwrapSupabaseResult(
+      await supabaseClient
+        .from("profiles")
+        .select("email, role")
+        .eq("role", "admin")
+        .order("email")
+    );
+    return { users: profiles.map((profile) => ({ username: profile.email })) };
+  }
+  throw new Error("Operação não suportada pela API Supabase.");
 }
 
 async function loadState() {
@@ -215,7 +452,25 @@ async function renderMasterSettings() {
   licenseExpired = settings.license_expired;
   const expiry = settings.license_expires_at || "";
   const users = userResult.users.map((user) => `<li>${escapeHTML(user.username)}</li>`).join("");
-  root.innerHTML = `${pageHeading("Configurações master", "Controle a validade do painel e gerencie usuários administrativos.", null, null)}
+  const administratorManagement = hasSupabaseConfig
+    ? `<section class="panel master-form">
+        <h2>Administradores</h2>
+        <p>Para adicionar ou remover acessos, gerencie usuários no Supabase Authentication e vincule seus perfis à academia. Somente usuários vinculados podem entrar.</p>
+        <h2 class="master-user-heading">Administradores cadastrados</h2>
+        ${users ? `<ul class="master-user-list">${users}</ul>` : '<p>Nenhum administrador adicional cadastrado.</p>'}
+      </section>`
+    : `<form class="panel master-form" id="admin-user-form">
+        <h2>Cadastrar usuário administrativo</h2>
+        <p>As senhas são armazenadas no banco somente como hash derivado; contas cadastradas aqui são removidas se o banco for apagado.</p>
+        <label for="admin-username">Usuário</label>
+        <input class="form-control" id="admin-username" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
+        <label for="admin-password">Senha (mínimo 8 caracteres)</label>
+        <input class="form-control" id="admin-password" name="password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required>
+        <button class="button button-primary" type="submit">Cadastrar administrador <span>＋</span></button>
+        <h2 class="master-user-heading">Administradores cadastrados</h2>
+        ${users ? `<ul class="master-user-list">${users}</ul>` : '<p>Nenhum administrador adicional cadastrado.</p>'}
+      </form>`;
+  root.innerHTML = `${pageHeading("Configurações master", "Controle a validade do painel e consulte os acessos administrativos.", null, null)}
     ${licenseExpired ? '<div class="license-notice"><strong>A validade do painel expirou.</strong> Atualize a data abaixo para liberar novamente o acesso administrativo.</div>' : ""}
     <div class="master-grid">
       <form class="panel master-form" id="license-form">
@@ -226,17 +481,7 @@ async function renderMasterSettings() {
         <button class="button button-primary" type="submit">Salvar validade <span>→</span></button>
         <button class="button button-quiet" id="remove-license-expiry" type="button">Remover limite de data</button>
       </form>
-      <form class="panel master-form" id="admin-user-form">
-        <h2>Cadastrar usuário administrativo</h2>
-        <p>As senhas são armazenadas no banco somente como hash derivado; contas cadastradas aqui são removidas se o banco for apagado.</p>
-        <label for="admin-username">Usuário</label>
-        <input class="form-control" id="admin-username" name="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+" autocomplete="off" required>
-        <label for="admin-password">Senha (mínimo 8 caracteres)</label>
-        <input class="form-control" id="admin-password" name="password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required>
-        <button class="button button-primary" type="submit">Cadastrar administrador <span>＋</span></button>
-        <h2 class="master-user-heading">Administradores cadastrados</h2>
-        ${users ? `<ul class="master-user-list">${users}</ul>` : '<p>Nenhum administrador adicional cadastrado.</p>'}
-      </form>
+      ${administratorManagement}
     </div>`;
   document.getElementById("license-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -261,21 +506,23 @@ async function renderMasterSettings() {
     document.getElementById("license-expires-at").value = "";
     document.getElementById("license-form").requestSubmit();
   });
-  document.getElementById("admin-user-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    try {
-      const values = Object.fromEntries(new FormData(form).entries());
-      await apiRequest("/api/master/users", {
-        method: "POST",
-        body: JSON.stringify(values)
-      });
-      showToast("Administrador cadastrado.");
-      await renderMasterSettings();
-    } catch (error) {
-      showRequestError(error);
-    }
-  });
+  if (!hasSupabaseConfig) {
+    document.getElementById("admin-user-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      try {
+        const values = Object.fromEntries(new FormData(form).entries());
+        await apiRequest("/api/master/users", {
+          method: "POST",
+          body: JSON.stringify(values)
+        });
+        showToast("Administrador cadastrado.");
+        await renderMasterSettings();
+      } catch (error) {
+        showRequestError(error);
+      }
+    });
+  }
 }
 
 function renderDashboard() {
@@ -347,7 +594,7 @@ function renderDueReminder(client) {
 }
 
 function renderBirthdayReminder(birthday) {
-  const message = `Feliz aniversário, ${birthday.nome}!\n\nToda a equipe da Rocha Fitness deseja a você um dia especial, cheio de alegria e muitas conquistas. Agradecemos por fazer parte da nossa academia. Conte sempre com a gente!`;
+  const message = `Feliz aniversário, ${birthday.nome}!\n\nA equipe da Rocha Fitness deseja a você um dia especial, cheio de alegria e muitas conquistas. Agradecemos por fazer parte da nossa família. Conte sempre com a gente!`;
   return `<article class="due-reminder-item">
     <div class="due-reminder-details">
       <strong class="due-reminder-name">${escapeHTML(birthday.nome)}</strong>
@@ -604,15 +851,26 @@ document.getElementById("record-form").addEventListener("submit", async (event) 
 document.getElementById("close-dialog").addEventListener("click", () => document.getElementById("form-dialog").close());
 document.getElementById("cancel-dialog").addEventListener("click", () => document.getElementById("form-dialog").close());
 document.getElementById("today-label").textContent = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date());
+if (hasSupabaseConfig) {
+  const identifier = document.getElementById("login-username");
+  identifier.type = "email";
+  identifier.name = "identifier";
+  identifier.autocomplete = "email";
+  identifier.setAttribute("placeholder", "seu@email.com");
+  document.querySelector('label[for="login-username"]').textContent = "E-mail";
+}
 document.getElementById("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const values = Object.fromEntries(new FormData(form).entries());
   document.getElementById("login-error").textContent = "";
   try {
+    const credentials = hasSupabaseConfig
+      ? { email: values.identifier, password: values.password }
+      : { username: values.username, password: values.password };
     await apiRequest("/api/login", {
       method: "POST",
-      body: JSON.stringify(values)
+      body: JSON.stringify(credentials)
     });
     form.reset();
     await startApplication();

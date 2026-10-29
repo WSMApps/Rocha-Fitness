@@ -8,7 +8,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import app
 
@@ -17,6 +17,8 @@ class FitnessServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original_database_path = app.DATABASE_PATH
+        cls.original_postgres_database_url = app.POSTGRES_DATABASE_URL
+        app.POSTGRES_DATABASE_URL = ""
         cls.temp_dir = tempfile.TemporaryDirectory()
         app.DATABASE_PATH = Path(cls.temp_dir.name) / "test.db"
         app.initialize_database()
@@ -44,6 +46,7 @@ class FitnessServerTests(unittest.TestCase):
         cls.thread.join()
         cls.temp_dir.cleanup()
         app.DATABASE_PATH = cls.original_database_path
+        app.POSTGRES_DATABASE_URL = cls.original_postgres_database_url
 
     def setUp(self):
         if not app.get_master_credentials():
@@ -70,13 +73,20 @@ class FitnessServerTests(unittest.TestCase):
     def test_static_site_is_served(self):
         with urlopen(f"{self.base_url}/") as response:
             self.assertEqual(response.status, 200)
-            self.assertIn(b"Conhe\xc3\xa7a", response.read())
+            home_page = response.read()
+            self.assertIn(b"Conhe\xc3\xa7a", home_page)
+            self.assertIn(b"supabase-config.js", home_page)
         with urlopen(f"{self.base_url}/assets/partner-graal.png") as response:
             self.assertEqual(response.headers.get_content_type(), "image/png")
             self.assertTrue(response.read().startswith(b"\x89PNG\r\n\x1a\n"))
         with urlopen(f"{self.base_url}/admin") as response:
             self.assertEqual(response.status, 200)
-            self.assertIn(b"Painel", response.read())
+            admin_page = response.read()
+            self.assertIn(b"Painel", admin_page)
+            self.assertIn(b"supabase-config.js", admin_page)
+        with urlopen(f"{self.base_url}/supabase-config.js") as response:
+            self.assertEqual(response.status, 200)
+            self.assertIn(b"ROCHA_SUPABASE_CONFIG", response.read())
 
     def test_records_api_requires_login(self):
         with self.assertRaises(HTTPError) as error:
@@ -86,6 +96,67 @@ class FitnessServerTests(unittest.TestCase):
             self.assertEqual(
                 json.loads(error.exception.read())["error"],
                 "Faça login para continuar.",
+            )
+
+    def test_postgres_query_adapter_uses_postgres_placeholders_and_order(self):
+        connection = MagicMock()
+        with patch.object(
+            app, "POSTGRES_DATABASE_URL", "postgresql://example.invalid/db"
+        ):
+            app.execute_query(
+                connection,
+                "SELECT id FROM records WHERE collection = ? AND id = ?",
+                ("clientes", "record-id"),
+            )
+
+        connection.execute.assert_called_once_with(
+            "SELECT id FROM records WHERE collection = %s AND id = %s",
+            ("clientes", "record-id"),
+        )
+        cursor = connection.cursor.return_value.__enter__.return_value
+        with patch.object(
+            app, "POSTGRES_DATABASE_URL", "postgresql://example.invalid/db"
+        ):
+            app.execute_many(
+                connection,
+                "INSERT INTO app_settings (key, value) VALUES (?, ?)",
+                (("first", "one"), ("second", "two")),
+            )
+            self.assertEqual(app.record_order_clause(), "created_at DESC, id DESC")
+        cursor.executemany.assert_called_once_with(
+            "INSERT INTO app_settings (key, value) VALUES (%s, %s)",
+            (("first", "one"), ("second", "two")),
+        )
+        connection.executemany.assert_not_called()
+
+    def test_postgres_initialization_checks_schema_without_creating_it(self):
+        connection = MagicMock()
+        with patch.object(
+            app, "POSTGRES_DATABASE_URL", "postgresql://example.invalid/db"
+        ):
+            with patch.object(app, "connect_database", return_value=connection):
+                app.initialize_database()
+
+        connection.execute.assert_called_once_with(
+            "SELECT 1 FROM app_settings LIMIT 0",
+            (),
+        )
+        connection.close.assert_called_once_with()
+
+    def test_postgres_connection_requires_ssl_and_disables_prepared_statements(self):
+        database_url = "postgresql://example.invalid/db"
+        from psycopg.rows import dict_row
+
+        with patch.object(app, "POSTGRES_DATABASE_URL", database_url):
+            with patch("psycopg.connect") as connect:
+                app.connect_database()
+
+            connect.assert_called_once_with(
+                database_url,
+                connect_timeout=10,
+                prepare_threshold=None,
+                row_factory=dict_row,
+                sslmode="require",
             )
 
     def test_master_credentials_are_hashed_and_removed_with_database(self):

@@ -23,6 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(
     os.environ.get("ROCHA_FITNESS_DATABASE", PROJECT_ROOT / "rocha_fitness.db")
 ).resolve()
+POSTGRES_DATABASE_URL = os.environ.get("ROCHA_FITNESS_DATABASE_URL", "").strip()
 SESSION_SECRET = secrets.token_bytes(32)
 SESSION_DURATION_SECONDS = 8 * 60 * 60
 PASSWORD_HASH_ITERATIONS = 310_000
@@ -67,10 +68,27 @@ PUBLIC_FILES = {
     "admin.html",
     "public.css",
     "public.js",
+    "supabase-config.js",
 }
 
 
 def connect_database():
+    if POSTGRES_DATABASE_URL:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as error:
+            raise RuntimeError(
+                "Instale as dependências do projeto para usar PostgreSQL."
+            ) from error
+        return psycopg.connect(
+            POSTGRES_DATABASE_URL,
+            connect_timeout=10,
+            prepare_threshold=None,
+            row_factory=dict_row,
+            sslmode="require",
+        )
+
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
@@ -96,6 +114,36 @@ def connect_database():
     return connection
 
 
+def execute_query(connection, query, parameters=()):
+    if POSTGRES_DATABASE_URL:
+        query = query.replace("?", "%s")
+    return connection.execute(query, parameters)
+
+
+def execute_many(connection, query, parameters):
+    if POSTGRES_DATABASE_URL:
+        query = query.replace("?", "%s")
+        with connection.cursor() as cursor:
+            return cursor.executemany(query, parameters)
+    return connection.executemany(query, parameters)
+
+
+def record_order_clause():
+    return "created_at DESC, id DESC" if POSTGRES_DATABASE_URL else "rowid DESC"
+
+
+def database_integrity_error_types():
+    if not POSTGRES_DATABASE_URL:
+        return (sqlite3.IntegrityError,)
+    try:
+        from psycopg import IntegrityError
+    except ImportError as error:
+        raise RuntimeError(
+            "Instale as dependências do projeto para usar PostgreSQL."
+        ) from error
+    return (IntegrityError,)
+
+
 @contextmanager
 def database_connection():
     connection = connect_database()
@@ -107,6 +155,10 @@ def database_connection():
 
 
 def initialize_database():
+    if POSTGRES_DATABASE_URL:
+        with database_connection() as connection:
+            execute_query(connection, "SELECT 1 FROM app_settings LIMIT 0")
+        return
     connection = connect_database()
     connection.close()
 
@@ -133,7 +185,8 @@ def verify_password(password, encoded_hash):
 
 def get_master_credentials():
     with database_connection() as connection:
-        rows = connection.execute(
+        rows = execute_query(
+            connection,
             "SELECT key, value FROM app_settings WHERE key IN (?, ?)",
             (MASTER_USERNAME_SETTING, MASTER_PASSWORD_HASH_SETTING),
         ).fetchall()
@@ -157,7 +210,8 @@ def set_master_credentials(username, password):
         )
     password_hash = hash_password(password)
     with database_connection() as connection:
-        connection.executemany(
+        execute_many(
+            connection,
             "INSERT INTO app_settings (key, value) VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (
@@ -196,7 +250,8 @@ def configure_master_user():
 
 def current_license_expiry():
     with database_connection() as connection:
-        row = connection.execute(
+        row = execute_query(
+            connection,
             "SELECT value FROM app_settings WHERE key = 'license_expires_at'"
         ).fetchone()
     return row["value"] if row else None
@@ -330,8 +385,9 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
                     return None
                 return session
             with database_connection() as connection:
-                user = connection.execute(
-                    "SELECT 1 FROM admin_users WHERE username = ?",
+                user = execute_query(
+                    connection,
+                    "SELECT 1 FROM admin_users WHERE lower(username) = lower(?)",
                     (session.get("username"),),
                 ).fetchone()
             return session if user else None
@@ -398,8 +454,10 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             or username.casefold() != master_username.casefold()
         ):
             with database_connection() as connection:
-                user = connection.execute(
-                    "SELECT password_hash FROM admin_users WHERE username = ?",
+                user = execute_query(
+                    connection,
+                    "SELECT password_hash FROM admin_users "
+                    "WHERE lower(username) = lower(?)",
                     (username,),
                 ).fetchone()
         if not is_master and (not user or not verify_password(password, user["password_hash"])):
@@ -471,7 +529,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
         if not self.require_session(master_only=True):
             return
         with database_connection() as connection:
-            users = connection.execute(
+            users = execute_query(
+                connection,
                 "SELECT username, created_at FROM admin_users ORDER BY username"
             ).fetchall()
         self.send_json(
@@ -484,9 +543,11 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
         collections = tuple(COLLECTION_FIELDS)
         placeholders = ", ".join("?" for _ in collections)
         with database_connection() as connection:
-            rows = connection.execute(
+            rows = execute_query(
+                connection,
                 "SELECT collection, id, data FROM records "
-                f"WHERE collection IN ({placeholders}) ORDER BY rowid DESC",
+                f"WHERE collection IN ({placeholders}) "
+                f"ORDER BY {record_order_clause()}",
                 collections,
             ).fetchall()
         for row in rows:
@@ -498,24 +559,28 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Cadastro não encontrado."})
             return
         with database_connection() as connection:
-            rows = connection.execute(
-                "SELECT id, data FROM records WHERE collection = ? ORDER BY rowid DESC",
+            rows = execute_query(
+                connection,
+                "SELECT id, data FROM records WHERE collection = ? "
+                f"ORDER BY {record_order_clause()}",
                 (collection,),
             ).fetchall()
         self.send_json(HTTPStatus.OK, [decode_record(row) for row in rows])
 
     def get_public_partners(self):
         with database_connection() as connection:
-            rows = connection.execute(
+            rows = execute_query(
+                connection,
                 "SELECT id, data FROM records WHERE collection = 'parcerias' "
-                "AND json_extract(data, '$.nome') COLLATE NOCASE = ? "
-                "ORDER BY rowid DESC",
-                ("Gympass",),
+                f"ORDER BY {record_order_clause()}",
             ).fetchall()
         partners = []
         for row in rows:
             record = decode_record(row)
-            if isinstance(record.get("nome"), str):
+            if (
+                isinstance(record.get("nome"), str)
+                and record["nome"].casefold() == "gympass"
+            ):
                 partners.append(
                     {
                         key: record[key]
@@ -561,7 +626,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
 
         record_id = str(uuid.uuid4())
         with database_connection() as connection:
-            connection.execute(
+            execute_query(
+                connection,
                 "INSERT INTO records (collection, id, data) VALUES (?, ?, ?)",
                 (collection, record_id, json.dumps(data, ensure_ascii=False)),
             )
@@ -612,12 +678,13 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             return
         try:
             with database_connection() as connection:
-                connection.execute(
+                execute_query(
+                    connection,
                     "INSERT INTO admin_users (username, password_hash, created_at) "
                     "VALUES (?, ?, ?)",
                     (username, hash_password(password), date.today().isoformat()),
                 )
-        except sqlite3.IntegrityError:
+        except database_integrity_error_types():
             self.send_json(
                 HTTPStatus.CONFLICT, {"error": "Este usuário já está cadastrado."}
             )
@@ -645,7 +712,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             return
 
         with database_connection() as connection:
-            result = connection.execute(
+            result = execute_query(
+                connection,
                 "UPDATE records SET data = ? WHERE collection = ? AND id = ?",
                 (json.dumps(data, ensure_ascii=False), collection, record_id),
             )
@@ -685,7 +753,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             )
             return
         with database_connection() as connection:
-            connection.execute(
+            execute_query(
+                connection,
                 "INSERT INTO app_settings (key, value) VALUES ('license_expires_at', ?) "
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (expiry,),
@@ -710,7 +779,8 @@ class FitnessRequestHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Cadastro não encontrado."})
             return
         with database_connection() as connection:
-            result = connection.execute(
+            result = execute_query(
+                connection,
                 "DELETE FROM records WHERE collection = ? AND id = ?",
                 (collection, record_id),
             )
